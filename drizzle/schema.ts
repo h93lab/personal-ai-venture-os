@@ -25,4 +25,15 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+export const githubConnections = mysqlTable("github_connections", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  token: text("token").notNull(),
+  repoOwner: varchar("repoOwner", { length: 120 }).notNull(),
+  repoName: varchar("repoName", { length: 200 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type GithubConnection = typeof githubConnections.$inferSelect;
+export type InsertGithubConnection = typeof githubConnections.$inferInsert;
