@@ -46,6 +46,8 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { useTheme } from "@/contexts/ThemeContext";
 
 type PageKey = "overview" | "tasks" | "discovery" | "ideas" | "projects" | "knowledge" | "competitors" | "telegram";
@@ -75,14 +77,14 @@ const pageMeta: Record<PageKey, { eyebrow: string; title: string; description: s
 };
 
 function StatCard({ icon: Icon, label, value, note, accent = "blue" }: { icon: typeof Activity; label: string; value: string; note: string; accent?: string }) {
-  return <div className="stat-card">
+  return <Card className="stat-card">
     <div className={`stat-icon ${accent}`}><Icon size={17} strokeWidth={1.8} /></div>
     <div className="stat-copy"><span>{label}</span><strong>{value}</strong><small>{note}</small></div>
-  </div>;
+  </Card>;
 }
 
 function Pill({ children, tone = "slate" }: { children: React.ReactNode; tone?: string }) {
-  return <span className={`pill ${tone}`}><span className="pill-dot" />{children}</span>;
+  return <Badge variant="secondary" className={`pill ${tone}`}><span className="pill-dot" />{children}</Badge>;
 }
 
 function AppShell({ active, setActive, children }: { active: PageKey; setActive: (key: PageKey) => void; children: React.ReactNode }) {

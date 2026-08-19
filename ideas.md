@@ -73,3 +73,10 @@ Amber Signal — #D89A3A. لون كهرماني محسوب يظهر في الف�
 - البيانات تجريبية فقط، وجميع أزرار التكاملات الحقيقية تعرض حالات توضيحية أو Toast مناسب.
 - الشاشات الأساسية: Overview، AI Tasks، Daily Discovery، Ideas Lab، Projects، Knowledge، Competitors، Telegram.
 - الأصول المولدة: venture-os-mark للشعار، venture-os-atmosphere للخلفية الخفيفة، daily-discovery-illustration لقسم الاكتشاف.
+
+## Style Decisions
+
+- Shadcn Dashboard هو المرجع البصري الحاكم للـ Prototype: ألوان neutral الرسمية، design tokens، radius، shadows، layout shell، ومكونات shadcn/ui لها الأولوية على أي تخصيص سابق.
+- Signal Atelier أصبح طبقة محتوى خفيفة فقط: يستخدم في صياغة التقارير والإشارات، وليس لتغيير palette أو component language الخاصة بالمرجع.
+- Amber Signal لا يظهر كخلفية أو هوية عامة؛ يستخدم فقط كإشارة حالة داخل محتوى الفرص عندما يخدم معنى واضحًا.
+- تم اعتماد Geist-style neutral typography direction بدل العرض التحريري المخصص عندما يتعارض مع مرجع Shadcn Dashboard.
