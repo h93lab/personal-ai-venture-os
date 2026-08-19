@@ -64,6 +64,20 @@
       "when": 1787166620991,
       "tag": "0008_aspiring_sumo",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1787167071020,
+      "tag": "0009_friendly_callisto",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1787167817311,
+      "tag": "0010_far_shaman",
+      "breakpoints": true
     }
   ]
 }

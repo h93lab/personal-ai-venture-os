@@ -5,7 +5,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { invokeLLM, listLLMModels } from "./_core/llm";
-import { deleteGithubConnection, getGithubConnection, updateGithubSchedule, updateGithubSync, upsertGithubConnection, getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings, listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns, updateUserProfile, listProjects, insertProject, updateProject, deleteProject, listIdeas, insertIdea, updateIdea, deleteIdea } from "./db";
+import { deleteGithubConnection, getGithubConnection, updateGithubSchedule, updateGithubSync, upsertGithubConnection, getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings, listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns, updateUserProfile, listProjects, insertProject, updateProject, deleteProject, listIdeas, insertIdea, updateIdea, deleteIdea, listKnowledgeItems, insertKnowledgeItem, updateKnowledgeItem, deleteKnowledgeItem, listDiscoverySignals, insertDiscoverySignal, updateDiscoverySignal, deleteDiscoverySignal } from "./db";
 import { createHeartbeatJob, deleteHeartbeatJob } from "./_core/heartbeat";
 import { executeAiTask } from "./ai-tasks";
 import { getTelegramConnection, upsertTelegramConnection, deleteTelegramConnection, getAiTaskRunStats } from "./db";
@@ -121,6 +121,20 @@ export const appRouter = router({
     create: protectedProcedure.input(z.object({ title: z.string().trim().min(2).max(220), category: z.string().trim().min(1).max(120), score: z.number().int().min(0).max(100).default(0), version: z.string().max(32).default("V1"), status: z.string().trim().min(1).max(80), description: z.string().max(5000).optional() })).mutation(async ({ ctx, input }) => { const id = await insertIdea({ ...input, userId: ctx.user.id }); return { id }; }),
     update: protectedProcedure.input(z.object({ id: z.number().int().positive(), data: z.object({ title: z.string().trim().min(2).max(220).optional(), category: z.string().trim().min(1).max(120).optional(), score: z.number().int().min(0).max(100).optional(), version: z.string().max(32).optional(), status: z.string().trim().min(1).max(80).optional(), description: z.string().max(5000).nullable().optional() }) })).mutation(async ({ ctx, input }) => { await updateIdea(ctx.user.id, input.id, input.data); return { updated: true as const }; }),
     delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { await deleteIdea(ctx.user.id, input.id); return { deleted: true as const }; }),
+  }),
+
+  discovery: router({
+    list: protectedProcedure.query(({ ctx }) => listDiscoverySignals(ctx.user.id)),
+    create: protectedProcedure.input(z.object({ title: z.string().trim().min(2).max(220), type: z.string().trim().min(1).max(120), score: z.number().int().min(0).max(100).default(0), sourceCount: z.number().int().min(0).max(10000).default(0), description: z.string().max(5000).optional(), verificationDays: z.number().int().min(0).max(365).default(2), status: z.string().trim().min(1).max(80).default("new") })).mutation(async ({ ctx, input }) => { const id = await insertDiscoverySignal({ ...input, userId: ctx.user.id }); return { id }; }),
+    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), data: z.object({ title: z.string().trim().min(2).max(220).optional(), type: z.string().trim().min(1).max(120).optional(), score: z.number().int().min(0).max(100).optional(), sourceCount: z.number().int().min(0).max(10000).optional(), description: z.string().max(5000).nullable().optional(), verificationDays: z.number().int().min(0).max(365).optional(), status: z.string().trim().min(1).max(80).optional() }) })).mutation(async ({ ctx, input }) => { await updateDiscoverySignal(ctx.user.id, input.id, input.data); return { updated: true as const }; }),
+    delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { await deleteDiscoverySignal(ctx.user.id, input.id); return { deleted: true as const }; }),
+  }),
+
+  knowledge: router({
+    list: protectedProcedure.query(({ ctx }) => listKnowledgeItems(ctx.user.id)),
+    create: protectedProcedure.input(z.object({ title: z.string().trim().min(2).max(220), kind: z.string().trim().min(1).max(60).default("ملاحظة"), content: z.string().max(20000).optional(), sourceUrl: z.string().url().max(1000).optional(), tags: z.string().max(500).optional() })).mutation(async ({ ctx, input }) => { const id = await insertKnowledgeItem({ ...input, userId: ctx.user.id }); return { id }; }),
+    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), data: z.object({ title: z.string().trim().min(2).max(220).optional(), kind: z.string().trim().min(1).max(60).optional(), content: z.string().max(20000).nullable().optional(), sourceUrl: z.string().url().max(1000).nullable().optional(), tags: z.string().max(500).nullable().optional() }) })).mutation(async ({ ctx, input }) => { await updateKnowledgeItem(ctx.user.id, input.id, input.data); return { updated: true as const }; }),
+    delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { await deleteKnowledgeItem(ctx.user.id, input.id); return { deleted: true as const }; }),
   }),
 
   productBrief: router({

@@ -124,6 +124,34 @@ export const projects = mysqlTable("projects", {
 export type Project = typeof projects.$inferSelect;
 export type InsertProject = typeof projects.$inferInsert;
 
+export const knowledgeItems = mysqlTable("knowledge_items", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 220 }).notNull(),
+  kind: varchar("kind", { length: 60 }).default("ملاحظة").notNull(),
+  content: text("content"),
+  sourceUrl: varchar("sourceUrl", { length: 1000 }),
+  tags: varchar("tags", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export const discoverySignals = mysqlTable("discovery_signals", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 220 }).notNull(),
+  type: varchar("type", { length: 120 }).notNull(),
+  score: int("score").default(0).notNull(),
+  sourceCount: int("sourceCount").default(0).notNull(),
+  description: text("description"),
+  verificationDays: int("verificationDays").default(2).notNull(),
+  status: varchar("status", { length: 80 }).default("new").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type DiscoverySignal = typeof discoverySignals.$inferSelect;
+export type InsertDiscoverySignal = typeof discoverySignals.$inferInsert;
+
 export const ideas = mysqlTable("ideas", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),

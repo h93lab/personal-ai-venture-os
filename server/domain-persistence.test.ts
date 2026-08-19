@@ -9,7 +9,11 @@ const listIdeas = vi.fn();
 const insertIdea = vi.fn();
 const updateIdea = vi.fn();
 const deleteIdea = vi.fn();
-vi.mock("./db", () => ({ listProjects, insertProject, updateProject, deleteProject, listIdeas, insertIdea, updateIdea, deleteIdea }));
+const listDiscoverySignals = vi.fn();
+const insertDiscoverySignal = vi.fn();
+const updateDiscoverySignal = vi.fn();
+const deleteDiscoverySignal = vi.fn();
+vi.mock("./db", () => ({ listProjects, insertProject, updateProject, deleteProject, listIdeas, insertIdea, updateIdea, deleteIdea, listDiscoverySignals, insertDiscoverySignal, updateDiscoverySignal, deleteDiscoverySignal }));
 const { appRouter } = await import("./routers");
 
 function context(): TrpcContext {
@@ -24,6 +28,19 @@ describe("persistent domain CRUD", () => {
     expect(await caller.projects.list()).toEqual([]);
     expect(await caller.projects.create({ title: "Pocket Quest", type: "لعبة", status: "فكرة", progress: 0 })).toEqual({ id: 12 });
     expect(insertProject).toHaveBeenCalledWith(expect.objectContaining({ userId: 55, title: "Pocket Quest" }));
+  });
+
+  it("lists, creates, updates, and deletes discovery signals for the authenticated owner", async () => {
+    listDiscoverySignals.mockResolvedValue([{ id: 3, userId: 55, title: "إشارة", type: "تطبيق", score: 70 }]);
+    insertDiscoverySignal.mockResolvedValue(14);
+    const caller = appRouter.createCaller(context());
+    expect(await caller.discovery.list()).toHaveLength(1);
+    expect(await caller.discovery.create({ title: "إشارة جديدة", type: "تطبيق", score: 80 })).toEqual({ id: 14 });
+    await caller.discovery.update({ id: 14, data: { status: "reviewed" } });
+    await caller.discovery.delete({ id: 14 });
+    expect(insertDiscoverySignal).toHaveBeenCalledWith(expect.objectContaining({ userId: 55, title: "إشارة جديدة" }));
+    expect(updateDiscoverySignal).toHaveBeenCalledWith(55, 14, { status: "reviewed" });
+    expect(deleteDiscoverySignal).toHaveBeenCalledWith(55, 14);
   });
 
   it("creates and updates ideas with the authenticated owner", async () => {

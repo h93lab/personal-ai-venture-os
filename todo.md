@@ -203,8 +203,15 @@
 - [x] إضافة lock لمنع التشغيل المتزامن لمهام AI.
 - [x] إضافة lock/dedupe للتشغيل المتزامن وتحويل timezone المستخدم إلى UTC في Heartbeat.
 - [x] إضافة persistence للمشاريع والأفكار وربطهما بـ tRPC.
-- [ ] إضافة persistence لبقية Knowledge/Discovery ذات الأولوية.
+- [x] إضافة persistence لبقية Knowledge/Discovery ذات الأولوية.
 - [x] إصلاح accessibility الأساسي للأزرار الأيقونية ورسائل الحالة.
-- [ ] تحسين code splitting وحجم bundle.
-- [ ] معالجة الاعتماديات عالية الخطورة وتوثيق أي استثناءات متبقية.
-- [ ] إضافة اختبارات E2E/تدفقات أساسية والتحقق النهائي وحفظ checkpoint مستقر.
+- [x] تحسين code splitting وحجم bundle عبر فصل DashboardCharts إلى lazy chunk وتقسيم vendor chunks.
+- [x] مراجعة الاعتماديات؛ تم تطبيق override لـ lodash وتوثيق بقاء path-to-regexp@0.1.12 بسبب Express 4.21.2، مع إبقاء ترقية Express 5 مؤجلة لتجنب كسر wildcard routes.
+- [x] تنفيذ smoke verification للواجهة والـ OAuth boundary، وتشغيل TypeScript وVitest وproduction build؛ اختبار رحلة OAuth الكاملة يحتاج جلسة مستخدم حقيقية.
+
+## تصحيحات ما بعد التحقق
+
+- [x] إضافة persistence فعلية لوحدة Discovery: schema وmigration وDB helpers وprotected tRPC CRUD وربط الواجهة واختبارات.
+- [x] معالجة path-to-regexp فعليًا بترقية Express إلى 5.2.1 وتحديث wildcard routes إلى صيغة Express 5.
+- [x] إضافة اختبار browser-level فعلي عبر Chromium headless يغطي حد OAuth وغياب أخطاء React Hooks؛ CRUD مسارات Discovery وdomain مغطاة باختبارات tRPC.
+

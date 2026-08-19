@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, isNull, lt, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, githubConnections, aiProviderSettings, aiTasks, aiTaskRuns, telegramConnections, InsertAiTask, projects, ideas } from "../drizzle/schema";
+import { InsertUser, users, githubConnections, aiProviderSettings, aiTasks, aiTaskRuns, telegramConnections, InsertAiTask, projects, ideas, knowledgeItems, discoverySignals } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { buildAiTaskStats } from "../shared/ai-task-stats";
 import { decryptSecret, encryptSecret, maskSecret } from "./secrets";
@@ -291,6 +291,56 @@ export async function deleteIdea(userId: number, id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
   await db.delete(ideas).where(and(eq(ideas.userId, userId), eq(ideas.id, id)));
+}
+
+export async function listDiscoverySignals(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(discoverySignals).where(eq(discoverySignals.userId, userId)).orderBy(desc(discoverySignals.updatedAt));
+}
+
+export async function insertDiscoverySignal(input: { userId: number; title: string; type: string; score?: number; sourceCount?: number; description?: string | null; verificationDays?: number; status?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const result = await db.insert(discoverySignals).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function updateDiscoverySignal(userId: number, id: number, patch: Partial<{ title: string; type: string; score: number; sourceCount: number; description: string | null; verificationDays: number; status: string }>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(discoverySignals).set({ ...patch, updatedAt: new Date() }).where(and(eq(discoverySignals.userId, userId), eq(discoverySignals.id, id)));
+}
+
+export async function deleteDiscoverySignal(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.delete(discoverySignals).where(and(eq(discoverySignals.userId, userId), eq(discoverySignals.id, id)));
+}
+
+export async function listKnowledgeItems(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(knowledgeItems).where(eq(knowledgeItems.userId, userId)).orderBy(desc(knowledgeItems.updatedAt));
+}
+
+export async function insertKnowledgeItem(input: { userId: number; title: string; kind: string; content?: string | null; sourceUrl?: string | null; tags?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const result = await db.insert(knowledgeItems).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function updateKnowledgeItem(userId: number, id: number, patch: Partial<{ title: string; kind: string; content: string | null; sourceUrl: string | null; tags: string | null }>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(knowledgeItems).set({ ...patch, updatedAt: new Date() }).where(and(eq(knowledgeItems.userId, userId), eq(knowledgeItems.id, id)));
+}
+
+export async function deleteKnowledgeItem(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.delete(knowledgeItems).where(and(eq(knowledgeItems.userId, userId), eq(knowledgeItems.id, id)));
 }
 
 export async function acquireAiTaskLock(userId: number, taskId: number, lockToken: string, now = new Date(), ttlMs = 10 * 60 * 1000) {

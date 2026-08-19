@@ -1,0 +1,13 @@
+import fs from "node:fs";
+const path = "client/src/pages/Home.tsx";
+let source = fs.readFileSync(path, "utf8");
+source = source.replace('import { useEffect, useMemo, useState } from "react";', 'import { lazy, Suspense, useEffect, useMemo, useState } from "react";');
+source = source.replace('  Download,\n', '');
+source = source.replace('  FileText,\n', '');
+source = source.replace('import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";\n', '');
+source = source.replace('import { toAiStatsExportRows } from "@shared/ai-stats-export";\n', '');
+source = source.replace(/const projectProgressData = .*?\nconst marketSignalData = .*?\n/s, '');
+source = source.replace(/function downloadCsv\(filename: string, headers: string\[], rows: string\[\]\[\]\) \{.*?\nfunction printPdf\(title: string, headers: string\[], rows: string\[\]\[\]\) \{.*?\n/s, '');
+source = source.replace(/^function DashboardCharts\(\) \{.*?^\}\n\n(?=function Overview)/ms, 'const DashboardCharts = lazy(() => import("@/components/DashboardCharts"));\n\n');
+source = source.replace('<DashboardCharts />', '<Suspense fallback={<div className="charts-grid"><div className="chart-empty-state"><Loader2 size={24} className="spin" /><span>جارٍ تحميل الرسوم...</span></div></div>}><DashboardCharts /></Suspense>');
+fs.writeFileSync(path, source);
