@@ -1,13 +1,7 @@
 import { getTelegramConnection } from "./db";
+import { DEFAULT_TELEGRAM_TEMPLATES, renderTelegramTemplate } from "../shared/telegram-templates";
 
-export const DEFAULT_TELEGRAM_TEMPLATES = {
-  success: "✅ اكتملت مهمة AI: {{task_title}}\\n\\n{{result}}",
-  failure: "❌ فشلت مهمة AI: {{task_title}}\\n\\nالخطأ: {{error}}",
-};
-
-export function renderTelegramTemplate(template: string, values: { task_title: string; result?: string; error?: string }) {
-  return template.replace(/\{\{\s*(task_title|result|error)\s*\}\}/g, (_, key: "task_title" | "result" | "error") => values[key] ?? "");
-}
+export { DEFAULT_TELEGRAM_TEMPLATES, renderTelegramTemplate };
 
 async function telegramRequest<T>(token: string, method: string, body?: Record<string, unknown>) {
   const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
