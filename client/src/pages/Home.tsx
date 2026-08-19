@@ -10,8 +10,8 @@ import {
   BrainCircuit,
   CalendarClock,
   Check,
-  ChevronDown,
   CircleDot,
+  ChevronDown,
   Clock3,
   Command,
   Compass,
@@ -27,6 +27,7 @@ import {
   Lightbulb,
   Loader2,
   Link2,
+  LogOut,
   Menu,
   MessageCircle,
   MoreHorizontal,
@@ -89,9 +90,10 @@ function Pill({ children, tone = "slate" }: { children: React.ReactNode; tone?: 
   return <Badge variant="secondary" className={`pill ${tone}`}><span className="pill-dot" />{children}</Badge>;
 }
 
-function AppShell({ active, setActive, children }: { active: PageKey; setActive: (key: PageKey) => void; children: React.ReactNode }) {
+function AppShell({ active, setActive, children, userName, logout }: { active: PageKey; setActive: (key: PageKey) => void; children: React.ReactNode; userName: string; logout: () => void }) {
   const { theme, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   return <div className="app-shell" dir="rtl">
     <aside className={`sidebar ${mobileOpen ? "mobile-open" : ""}`}>
       <div className="brand-row">
@@ -99,14 +101,13 @@ function AppShell({ active, setActive, children }: { active: PageKey; setActive:
         <div><strong>Venture OS</strong><span>مختبرك الشخصي</span></div>
         <button className="icon-button sidebar-close" onClick={() => setMobileOpen(false)}><X size={17} /></button>
       </div>
-      <div className="workspace-switch"><div className="avatar">م</div><div><strong>مساحتي الشخصية</strong><span>Private workspace</span></div><ChevronDown size={15} /></div>
       <nav className="side-nav">
         {navGroups.map((group) => <div className="nav-group" key={group.label}><span className="nav-label">{group.label}</span>{group.items.map((item) => <button key={item.key} className={`nav-item ${active === item.key ? "active" : ""}`} onClick={() => { setActive(item.key as PageKey); setMobileOpen(false); }}><item.icon size={17} strokeWidth={active === item.key ? 2.1 : 1.7} /><span>{item.label}</span>{item.key === "tasks" && <b className="nav-count">3</b>}</button>)}</div>)}
       </nav>
-      <div className="sidebar-bottom"><div className="sidebar-status"><span className="live-dot" /><div><strong>المساعد متصل</strong><span>آخر مزامنة منذ 3 د</span></div></div><button className={`nav-item ${active === "settings" ? "active" : ""}`} onClick={() => { setActive("settings"); setMobileOpen(false); }}><Settings2 size={17} /><span>الإعدادات</span></button></div>
+      <div className="sidebar-bottom"><div className="sidebar-status"><span className="live-dot" /><div><strong>المساعد متصل</strong><span>آخر مزامنة منذ 3 د</span></div></div></div>
     </aside>
     <main className="main-shell">
-      <header className="topbar"><button className="mobile-menu icon-button" onClick={() => setMobileOpen(true)}><Menu size={19} /></button><div className="breadcrumbs"><span>Venture OS</span><span>/</span><strong>{pageMeta[active].title}</strong></div><div className="top-actions"><button className="search-trigger" onClick={() => toast("البحث الذكي — سيبحث داخل معرفتك عند تفعيل المنصة")}><Search size={16} /><span>ابحث في مساحتك</span><kbd>⌘ K</kbd></button><button className="icon-button" onClick={() => toast("لا توجد تنبيهات جديدة") }><Bell size={18} /><i className="notification-dot" /></button><button className="icon-button" onClick={toggleTheme}>{theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}</button><div className="top-avatar">م</div></div></header>
+      <header className="topbar"><button className="mobile-menu icon-button" onClick={() => setMobileOpen(true)}><Menu size={19} /></button><div className="breadcrumbs"><span>Venture OS</span><span>/</span><strong>{pageMeta[active].title}</strong></div><div className="top-actions"><button className="search-trigger" onClick={() => toast("البحث الذكي — سيبحث داخل معرفتك عند تفعيل المنصة")}><Search size={16} /><span>ابحث في مساحتك</span><kbd>⌘ K</kbd></button><button className="icon-button" onClick={() => toast("لا توجد تنبيهات جديدة") }><Bell size={18} /><i className="notification-dot" /></button><button className="icon-button" onClick={toggleTheme}>{theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}</button><div className="user-menu-wrap"><button className="user-trigger" onClick={() => setUserMenuOpen((open) => !open)} aria-expanded={userMenuOpen}><span className="top-avatar">{userName.slice(0, 1)}</span><span className="user-trigger-name">{userName}</span><ChevronDown size={14} /></button>{userMenuOpen && <div className="user-menu"><div className="user-menu-heading"><span className="top-avatar">{userName.slice(0, 1)}</span><div><strong>{userName}</strong><small>مساحة شخصية</small></div></div><button onClick={() => { setActive("settings"); setUserMenuOpen(false); }}><Settings2 size={15} /> الإعدادات</button><button onClick={() => { setUserMenuOpen(false); logout(); }}><LogOut size={15} /> تسجيل الخروج</button></div>}</div></div></header>
       <div className="page-content">{children}</div>
     </main>
   </div>;
@@ -157,5 +158,5 @@ export default function Home() {
   const [userName, setUserName] = useState("مطور مستقل");
   const content = useMemo(() => { if (active === "overview") return <Overview go={setActive} />; if (active === "tasks") return <Tasks tasks={tasks} setTasks={setTasks} />; if (active === "discovery") return <Discovery />; if (active === "ideas") return <Ideas />; if (active === "projects") return <Projects />; if (active === "settings") return <SettingsPage userName={userName} setUserName={setUserName} password={password} setPassword={setPassword} logout={() => { setAuthenticated(false); window.localStorage.removeItem("venture-os-remembered"); }} />; return <SimplePage page={active} />; }, [active, tasks, password, userName]);
   if (!authenticated) return <LoginScreen onLogin={(value, remember) => { if (value === password) { setAuthenticated(true); if (remember) window.localStorage.setItem("venture-os-remembered", "true"); else window.localStorage.removeItem("venture-os-remembered"); return true; } return false; }} />;
-  return <AppShell active={active} setActive={setActive}>{content}<footer className="prototype-footer"><span><CircleDot size={12} /> Prototype · بيانات تجريبية فقط</span><span>Personal AI Venture OS <span className="footer-divider">·</span> v0.2</span></footer></AppShell>;
+  return <AppShell active={active} setActive={setActive} userName={userName} logout={() => { setAuthenticated(false); window.localStorage.removeItem("venture-os-remembered"); }}>{content}<footer className="prototype-footer"><span><CircleDot size={12} /> Prototype · بيانات تجريبية فقط</span><span>Personal AI Venture OS <span className="footer-divider">·</span> v0.2</span></footer></AppShell>;
 }
