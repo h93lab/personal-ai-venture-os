@@ -1,0 +1,1 @@
+ALTER TABLE `ai_tasks` ADD `timezone` varchar(64) DEFAULT 'Asia/Dubai' NOT NULL;

@@ -79,10 +79,13 @@ export const aiTasks = mysqlTable("ai_tasks", {
   instructions: text("instructions").notNull(),
   cadence: mysqlEnum("cadence", ["manual", "daily", "weekly"]).default("daily").notNull(),
   runTime: varchar("runTime", { length: 5 }).default("08:00").notNull(),
+  timezone: varchar("timezone", { length: 64 }).default("Asia/Dubai").notNull(),
   status: mysqlEnum("status", ["active", "paused"]).default("active").notNull(),
   scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
   lastRunAt: timestamp("lastRunAt"),
   nextRunAt: timestamp("nextRunAt"),
+  lockToken: varchar("lockToken", { length: 64 }),
+  lockExpiresAt: timestamp("lockExpiresAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -105,3 +108,34 @@ export const aiTaskRuns = mysqlTable("ai_task_runs", {
 
 export type AiTaskRun = typeof aiTaskRuns.$inferSelect;
 export type InsertAiTaskRun = typeof aiTaskRuns.$inferInsert;
+
+export const projects = mysqlTable("projects", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 180 }).notNull(),
+  type: varchar("type", { length: 120 }).notNull(),
+  status: varchar("status", { length: 80 }).notNull(),
+  progress: int("progress").default(0).notNull(),
+  nextStep: text("nextStep"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = typeof projects.$inferInsert;
+
+export const ideas = mysqlTable("ideas", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 220 }).notNull(),
+  category: varchar("category", { length: 120 }).notNull(),
+  score: int("score").default(0).notNull(),
+  version: varchar("version", { length: 32 }).default("V1").notNull(),
+  status: varchar("status", { length: 80 }).notNull(),
+  description: text("description"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Idea = typeof ideas.$inferSelect;
+export type InsertIdea = typeof ideas.$inferInsert;

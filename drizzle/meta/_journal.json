@@ -43,6 +43,27 @@
       "when": 1787141049077,
       "tag": "0005_worried_klaw",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1787165589330,
+      "tag": "0006_bumpy_otto_octavius",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1787166008335,
+      "tag": "0007_conscious_dreadnoughts",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1787166620991,
+      "tag": "0008_aspiring_sumo",
+      "breakpoints": true
     }
   ]
 }

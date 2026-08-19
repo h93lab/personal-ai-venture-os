@@ -10,12 +10,14 @@ const listAiTaskRuns = vi.fn();
 const insertAiTaskRun = vi.fn();
 const completeAiTaskRun = vi.fn();
 const markAiTaskRun = vi.fn();
+const acquireAiTaskLock = vi.fn();
+const releaseAiTaskLock = vi.fn();
 const getTelegramConnection = vi.fn();
 const invokeLLM = vi.fn();
 const createHeartbeatJob = vi.fn();
 const deleteHeartbeatJob = vi.fn();
 
-vi.mock("./db", () => ({ listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns, insertAiTaskRun, completeAiTaskRun, markAiTaskRun, getTelegramConnection }));
+vi.mock("./db", () => ({ listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns, insertAiTaskRun, completeAiTaskRun, markAiTaskRun, acquireAiTaskLock, releaseAiTaskLock, getTelegramConnection }));
 vi.mock("./_core/llm", () => ({ invokeLLM, listLLMModels: vi.fn() }));
 vi.mock("./_core/heartbeat", () => ({ createHeartbeatJob, deleteHeartbeatJob }));
 
@@ -33,6 +35,8 @@ describe("AI task CRUD", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     createHeartbeatJob.mockResolvedValue({ taskUid: "heartbeat-1", nextExecutionAt: "2026-08-20T08:00:00Z" });
+    acquireAiTaskLock.mockResolvedValue(true);
+    releaseAiTaskLock.mockResolvedValue(undefined);
   });
 
   it("lists tasks and historical runs for the current user", async () => {
@@ -60,7 +64,7 @@ describe("AI task CRUD", () => {
     const caller = appRouter.createCaller(context());
     await caller.aiTasks.update({ id: 8, data: { status: "paused" } });
     expect(deleteHeartbeatJob).toHaveBeenCalledWith("heartbeat-8", "");
-    expect(updateAiTask).toHaveBeenCalledWith(42, 8, { status: "paused", scheduleCronTaskUid: null, nextRunAt: null });
+    expect(updateAiTask).toHaveBeenCalledWith(42, 8, { status: "paused", timezone: "Asia/Dubai", scheduleCronTaskUid: null, nextRunAt: null });
   });
 
   it("runs a task and persists the generated result", async () => {
@@ -71,5 +75,14 @@ describe("AI task CRUD", () => {
     expect(result).toMatchObject({ runId: 9, status: "success", result: "نتيجة قابلة للتنفيذ" });
     expect(completeAiTaskRun).toHaveBeenCalledWith(42, 9, { status: "success", result: "نتيجة قابلة للتنفيذ" });
     expect(markAiTaskRun).toHaveBeenCalledWith(42, 3, expect.any(Date));
+    expect(acquireAiTaskLock).toHaveBeenCalledWith(42, 3, expect.any(String), expect.any(Date));
+    expect(releaseAiTaskLock).toHaveBeenCalledWith(42, 3, expect.any(String));
+  });
+
+  it("rejects a concurrent task run when the lock is already held", async () => {
+    acquireAiTaskLock.mockResolvedValue(false);
+    getAiTask.mockResolvedValue({ id: 4, userId: 42, title: "Locked task", instructions: "Do not overlap" });
+    await expect(appRouter.createCaller(context()).aiTasks.run({ id: 4 })).rejects.toThrow("already running");
+    expect(insertAiTaskRun).not.toHaveBeenCalled();
   });
 });

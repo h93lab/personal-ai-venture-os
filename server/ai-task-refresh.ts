@@ -13,6 +13,8 @@ export async function aiTaskRefreshHandler(req: Request, res: Response) {
     const result = await executeAiTask(task.userId, task.id);
     return res.json({ ok: true, taskId: task.id, runId: result.runId, status: result.status });
   } catch (error) {
-    return res.status(500).json({ error: String(error), timestamp: new Date().toISOString() });
+    const message = error instanceof Error ? error.message : String(error);
+    const status = /session|cron|forbidden|unauthorized/i.test(message) ? 403 : 500;
+    return res.status(status).json({ error: status === 403 ? "forbidden" : "task-failed", timestamp: new Date().toISOString() });
   }
 }

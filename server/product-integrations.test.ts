@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
 const invokeLLM = vi.fn();
@@ -12,8 +12,11 @@ const deleteGithubConnection = vi.fn();
 
 vi.mock("./_core/llm", () => ({ invokeLLM, listLLMModels }));
 vi.mock("./db", () => ({ getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings, getGithubConnection, upsertGithubConnection, deleteGithubConnection }));
+vi.mock("./http-client", () => ({ externalFetch: (url: string, init?: RequestInit) => globalThis.fetch(url, init) }));
 
 const { appRouter } = await import("./routers");
+
+afterEach(() => vi.unstubAllGlobals());
 
 type TestContext = TrpcContext;
 

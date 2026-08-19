@@ -1,8 +1,9 @@
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lt, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, githubConnections, aiProviderSettings, aiTasks, aiTaskRuns, telegramConnections, InsertAiTask } from "../drizzle/schema";
+import { InsertUser, users, githubConnections, aiProviderSettings, aiTasks, aiTaskRuns, telegramConnections, InsertAiTask, projects, ideas } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { buildAiTaskStats } from "../shared/ai-task-stats";
+import { decryptSecret, encryptSecret, maskSecret } from "./secrets";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -90,18 +91,28 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+export async function updateUserProfile(userId: number, input: { name?: string | null; email?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(users).set({ ...input, updatedAt: new Date() }).where(eq(users.id, userId));
+  const rows = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return rows[0];
+}
+
 export async function getGithubConnection(userId: number) {
   const db = await getDb();
   if (!db) return undefined;
   const rows = await db.select().from(githubConnections).where(eq(githubConnections.userId, userId)).limit(1);
-  return rows[0];
+  if (!rows[0]) return undefined;
+  return { ...rows[0], token: decryptSecret(rows[0].token) };
 }
 
 export async function upsertGithubConnection(input: { userId: number; token: string; repoOwner: string; repoName: string; healthThreshold?: number; refreshMinutes?: number; scheduleCronTaskUid?: string | null }) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.insert(githubConnections).values(input).onDuplicateKeyUpdate({
-    set: { token: input.token, repoOwner: input.repoOwner, repoName: input.repoName, healthThreshold: input.healthThreshold ?? 50, refreshMinutes: input.refreshMinutes ?? 60, scheduleCronTaskUid: input.scheduleCronTaskUid ?? null, updatedAt: new Date() },
+  const token = encryptSecret(input.token);
+  await db.insert(githubConnections).values({ ...input, token }).onDuplicateKeyUpdate({
+    set: { token, repoOwner: input.repoOwner, repoName: input.repoName, healthThreshold: input.healthThreshold ?? 50, refreshMinutes: input.refreshMinutes ?? 60, scheduleCronTaskUid: input.scheduleCronTaskUid ?? null, updatedAt: new Date() },
   });
 }
 
@@ -109,7 +120,8 @@ export async function getGithubConnectionByTaskUid(taskUid: string) {
   const db = await getDb();
   if (!db) return undefined;
   const rows = await db.select().from(githubConnections).where(eq(githubConnections.scheduleCronTaskUid, taskUid)).limit(1);
-  return rows[0];
+  if (!rows[0]) return undefined;
+  return { ...rows[0], token: decryptSecret(rows[0].token) };
 }
 
 export async function updateGithubSync(userId: number, status: unknown) {
@@ -136,13 +148,15 @@ export async function getAiProviderSettings(userId: number) {
   const rows = await db.select().from(aiProviderSettings).where(eq(aiProviderSettings.userId, userId)).limit(1);
   const row = rows[0];
   if (!row) return undefined;
-  return { provider: row.provider, endpoint: row.endpoint, selectedModel: row.selectedModel, apiKey: row.apiKey, maskedApiKey: `${row.apiKey.slice(0, 4)}••••${row.apiKey.slice(-4)}` };
+  const apiKey = decryptSecret(row.apiKey);
+  return { provider: row.provider, endpoint: row.endpoint, selectedModel: row.selectedModel, apiKey, maskedApiKey: maskSecret(apiKey) };
 }
 
 export async function upsertAiProviderSettings(input: { userId: number; provider: string; endpoint: string; apiKey: string; selectedModel?: string | null }) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.insert(aiProviderSettings).values(input).onDuplicateKeyUpdate({ set: { provider: input.provider, endpoint: input.endpoint, apiKey: input.apiKey, selectedModel: input.selectedModel ?? null, updatedAt: new Date() } });
+  const apiKey = encryptSecret(input.apiKey);
+  await db.insert(aiProviderSettings).values({ ...input, apiKey }).onDuplicateKeyUpdate({ set: { provider: input.provider, endpoint: input.endpoint, apiKey, selectedModel: input.selectedModel ?? null, updatedAt: new Date() } });
 }
 
 export async function deleteAiProviderSettings(userId: number) {
@@ -157,13 +171,15 @@ export async function getTelegramConnection(userId: number) {
   const rows = await db.select().from(telegramConnections).where(eq(telegramConnections.userId, userId)).limit(1);
   const row = rows[0];
   if (!row) return undefined;
-  return { ...row, botTokenMasked: row.botToken.length <= 8 ? "••••••••" : `${row.botToken.slice(0, 4)}••••${row.botToken.slice(-4)}` };
+  const botToken = decryptSecret(row.botToken);
+  return { ...row, botToken, botTokenMasked: maskSecret(botToken) };
 }
 
 export async function upsertTelegramConnection(input: { userId: number; botToken: string; chatId: string; enabled?: number; successTemplate?: string | null; failureTemplate?: string | null }) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.insert(telegramConnections).values({ ...input, enabled: input.enabled ?? 1 }).onDuplicateKeyUpdate({ set: { botToken: input.botToken, chatId: input.chatId, enabled: input.enabled ?? 1, successTemplate: input.successTemplate ?? null, failureTemplate: input.failureTemplate ?? null, updatedAt: new Date() } });
+  const botToken = encryptSecret(input.botToken);
+  await db.insert(telegramConnections).values({ ...input, botToken, enabled: input.enabled ?? 1 }).onDuplicateKeyUpdate({ set: { botToken, chatId: input.chatId, enabled: input.enabled ?? 1, successTemplate: input.successTemplate ?? null, failureTemplate: input.failureTemplate ?? null, updatedAt: new Date() } });
 }
 
 export async function deleteTelegramConnection(userId: number) {
@@ -225,6 +241,69 @@ export async function listAiTaskRuns(userId: number, taskId?: number) {
   if (!db) return [];
   const condition = taskId === undefined ? eq(aiTaskRuns.userId, userId) : and(eq(aiTaskRuns.userId, userId), eq(aiTaskRuns.taskId, taskId));
   return db.select().from(aiTaskRuns).where(condition).orderBy(desc(aiTaskRuns.createdAt)).limit(100);
+}
+
+export async function listProjects(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(projects).where(eq(projects.userId, userId)).orderBy(desc(projects.updatedAt));
+}
+
+export async function insertProject(input: { userId: number; title: string; type: string; status: string; progress?: number; nextStep?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const result = await db.insert(projects).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function updateProject(userId: number, id: number, patch: Partial<{ title: string; type: string; status: string; progress: number; nextStep: string | null }>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(projects).set({ ...patch, updatedAt: new Date() }).where(and(eq(projects.userId, userId), eq(projects.id, id)));
+}
+
+export async function deleteProject(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.delete(projects).where(and(eq(projects.userId, userId), eq(projects.id, id)));
+}
+
+export async function listIdeas(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(ideas).where(eq(ideas.userId, userId)).orderBy(desc(ideas.updatedAt));
+}
+
+export async function insertIdea(input: { userId: number; title: string; category: string; score?: number; version?: string; status: string; description?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const result = await db.insert(ideas).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function updateIdea(userId: number, id: number, patch: Partial<{ title: string; category: string; score: number; version: string; status: string; description: string | null }>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(ideas).set({ ...patch, updatedAt: new Date() }).where(and(eq(ideas.userId, userId), eq(ideas.id, id)));
+}
+
+export async function deleteIdea(userId: number, id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.delete(ideas).where(and(eq(ideas.userId, userId), eq(ideas.id, id)));
+}
+
+export async function acquireAiTaskLock(userId: number, taskId: number, lockToken: string, now = new Date(), ttlMs = 10 * 60 * 1000) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const result = await db.update(aiTasks).set({ lockToken, lockExpiresAt: new Date(now.getTime() + ttlMs), updatedAt: new Date() }).where(and(eq(aiTasks.userId, userId), eq(aiTasks.id, taskId), eq(aiTasks.status, "active"), or(isNull(aiTasks.lockExpiresAt), lt(aiTasks.lockExpiresAt, now))));
+  return Number(result[0].affectedRows ?? 0) === 1;
+}
+
+export async function releaseAiTaskLock(userId: number, taskId: number, lockToken: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(aiTasks).set({ lockToken: null, lockExpiresAt: null, updatedAt: new Date() }).where(and(eq(aiTasks.userId, userId), eq(aiTasks.id, taskId), eq(aiTasks.lockToken, lockToken)));
 }
 
 export async function insertAiTaskRun(input: { taskId: number; userId: number; model?: string | null }) {

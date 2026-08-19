@@ -14,6 +14,7 @@ const deleteHeartbeatJob = vi.fn();
 vi.mock("./_core/llm", () => ({ listLLMModels, invokeLLM }));
 vi.mock("./db", () => ({ getAiProviderSettings, getGithubConnection, upsertGithubConnection, updateGithubSync, deleteGithubConnection }));
 vi.mock("./_core/heartbeat", () => ({ createHeartbeatJob, deleteHeartbeatJob }));
+vi.mock("./http-client", () => ({ externalFetch: (url: string, init?: RequestInit) => globalThis.fetch(url, init) }));
 
 const { appRouter } = await import("./routers");
 

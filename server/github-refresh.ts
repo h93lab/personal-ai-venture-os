@@ -13,6 +13,8 @@ export async function githubRefreshHandler(req: Request, res: Response) {
     await updateGithubSync(connection.userId, status);
     return res.json({ ok: true, repo: status.repo, health: status.health, warning: status.health < connection.healthThreshold });
   } catch (error) {
-    return res.status(500).json({ error: String(error), timestamp: new Date().toISOString() });
+    const message = error instanceof Error ? error.message : String(error);
+    const status = /session|cron|forbidden|unauthorized/i.test(message) ? 403 : 500;
+    return res.status(status).json({ error: status === 403 ? "forbidden" : "refresh-failed", timestamp: new Date().toISOString() });
   }
 }

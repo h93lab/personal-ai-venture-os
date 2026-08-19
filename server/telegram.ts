@@ -1,10 +1,11 @@
 import { getTelegramConnection } from "./db";
 import { DEFAULT_TELEGRAM_TEMPLATES, renderTelegramTemplate } from "../shared/telegram-templates";
+import { externalFetch } from "./http-client";
 
 export { DEFAULT_TELEGRAM_TEMPLATES, renderTelegramTemplate };
 
 async function telegramRequest<T>(token: string, method: string, body?: Record<string, unknown>) {
-  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+  const response = await externalFetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: body ? "POST" : "GET",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,

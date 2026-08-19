@@ -9,6 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { githubRefreshHandler } from "../github-refresh";
 import { aiTaskRefreshHandler } from "../ai-task-refresh";
+import { isSameOriginRequest } from "../csrf";
 import { serveStatic, setupVite } from "./vite";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -30,12 +31,29 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+function csrfProtection(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (req.method !== "GET" && !isSameOriginRequest(req)) return res.status(403).json({ error: "csrf-origin" });
+  return next();
+}
+
+function apiRateLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const now = Date.now();
+  const key = req.ip || req.socket.remoteAddress || "unknown";
+  const bucket = rateBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) rateBuckets.set(key, { count: 1, resetAt: now + 60_000 });
+  else if (bucket.count >= 120) return res.status(429).json({ error: "rate-limit", retryAfterSeconds: Math.ceil((bucket.resetAt - now) / 1000) });
+  else bucket.count += 1;
+  return next();
+}
+
 async function startServer() {
   const app = express();
+  app.set("trust proxy", 1);
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(express.json({ limit: "2mb" }));
+  app.use(express.urlencoded({ limit: "256kb", extended: true }));
+  app.use("/api/trpc", csrfProtection, apiRateLimit);
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   app.post("/api/scheduled/github-refresh", githubRefreshHandler);

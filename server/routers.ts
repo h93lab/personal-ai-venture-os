@@ -5,11 +5,12 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { invokeLLM, listLLMModels } from "./_core/llm";
-import { deleteGithubConnection, getGithubConnection, updateGithubSchedule, updateGithubSync, upsertGithubConnection, getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings, listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns } from "./db";
+import { deleteGithubConnection, getGithubConnection, updateGithubSchedule, updateGithubSync, upsertGithubConnection, getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings, listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns, updateUserProfile, listProjects, insertProject, updateProject, deleteProject, listIdeas, insertIdea, updateIdea, deleteIdea } from "./db";
 import { createHeartbeatJob, deleteHeartbeatJob } from "./_core/heartbeat";
 import { executeAiTask } from "./ai-tasks";
 import { getTelegramConnection, upsertTelegramConnection, deleteTelegramConnection, getAiTaskRunStats } from "./db";
 import { testTelegramConnection } from "./telegram";
+import { externalFetch } from "./http-client";
 
 export function maskGithubToken(token: string | undefined) {
   if (!token) return null;
@@ -17,7 +18,7 @@ export function maskGithubToken(token: string | undefined) {
 }
 
 async function githubRequest<T>(token: string, path: string): Promise<T> {
-  const response = await fetch(`https://api.github.com${path}`, {
+  const response = await externalFetch(`https://api.github.com${path}`, {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
@@ -56,13 +57,32 @@ const aiTaskInput = z.object({
   instructions: z.string().min(3).max(10000),
   cadence: z.enum(["manual", "daily", "weekly"]),
   runTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  timezone: z.string().min(1).max(64).default("Asia/Dubai"),
   status: z.enum(["active", "paused"]).default("active"),
 });
 
-function cronForAiTask(cadence: "manual" | "daily" | "weekly", runTime: string) {
+function timezoneOffsetMinutes(timezone: string, date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: timezone, timeZoneName: "longOffset" }).formatToParts(date);
+  const value = parts.find(part => part.type === "timeZoneName")?.value ?? "GMT";
+  const match = value.match(/GMT([+-])(\d{2}):?(\d{2})?/);
+  if (!match) return 0;
+  const minutes = Number(match[2]) * 60 + Number(match[3] ?? 0);
+  return match[1] === "+" ? minutes : -minutes;
+}
+
+export function cronForAiTask(cadence: "manual" | "daily" | "weekly", runTime: string, timezone = "Asia/Dubai") {
   if (cadence === "manual") return null;
-  const [hour, minute] = runTime.split(":");
-  return cadence === "weekly" ? `0 ${minute} ${hour} * * 1` : `0 ${minute} ${hour} * * *`;
+  const [localHour, localMinute] = runTime.split(":").map(Number);
+  const offset = timezoneOffsetMinutes(timezone);
+  const utcTotal = localHour * 60 + localMinute - offset;
+  const utcMinute = ((utcTotal % 60) + 60) % 60;
+  const dayShift = Math.floor(utcTotal / 1440);
+  const utcHour = ((Math.floor(utcTotal / 60) % 24) + 24) % 24;
+  if (cadence === "weekly") {
+    const utcDay = ((1 + dayShift) % 7 + 7) % 7;
+    return `0 ${utcMinute} ${utcHour} * * ${utcDay}`;
+  }
+  return `0 ${utcMinute} ${utcHour} * * *`;
 }
 
 const githubRepoInput = z.object({
@@ -80,6 +100,27 @@ export const appRouter = router({
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+  }),
+
+  profile: router({
+    update: protectedProcedure.input(z.object({ name: z.string().trim().min(2).max(120), email: z.string().email().max(320).optional() })).mutation(async ({ ctx, input }) => {
+      const user = await updateUserProfile(ctx.user.id, { name: input.name, email: input.email });
+      return { updated: true as const, user };
+    }),
+  }),
+
+  projects: router({
+    list: protectedProcedure.query(({ ctx }) => listProjects(ctx.user.id)),
+    create: protectedProcedure.input(z.object({ title: z.string().trim().min(2).max(180), type: z.string().trim().min(1).max(120), status: z.string().trim().min(1).max(80), progress: z.number().int().min(0).max(100).default(0), nextStep: z.string().max(2000).optional() })).mutation(async ({ ctx, input }) => { const id = await insertProject({ ...input, userId: ctx.user.id }); return { id }; }),
+    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), data: z.object({ title: z.string().trim().min(2).max(180).optional(), type: z.string().trim().min(1).max(120).optional(), status: z.string().trim().min(1).max(80).optional(), progress: z.number().int().min(0).max(100).optional(), nextStep: z.string().max(2000).nullable().optional() }) })).mutation(async ({ ctx, input }) => { await updateProject(ctx.user.id, input.id, input.data); return { updated: true as const }; }),
+    delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { await deleteProject(ctx.user.id, input.id); return { deleted: true as const }; }),
+  }),
+
+  ideas: router({
+    list: protectedProcedure.query(({ ctx }) => listIdeas(ctx.user.id)),
+    create: protectedProcedure.input(z.object({ title: z.string().trim().min(2).max(220), category: z.string().trim().min(1).max(120), score: z.number().int().min(0).max(100).default(0), version: z.string().max(32).default("V1"), status: z.string().trim().min(1).max(80), description: z.string().max(5000).optional() })).mutation(async ({ ctx, input }) => { const id = await insertIdea({ ...input, userId: ctx.user.id }); return { id }; }),
+    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), data: z.object({ title: z.string().trim().min(2).max(220).optional(), category: z.string().trim().min(1).max(120).optional(), score: z.number().int().min(0).max(100).optional(), version: z.string().max(32).optional(), status: z.string().trim().min(1).max(80).optional(), description: z.string().max(5000).nullable().optional() }) })).mutation(async ({ ctx, input }) => { await updateIdea(ctx.user.id, input.id, input.data); return { updated: true as const }; }),
+    delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { await deleteIdea(ctx.user.id, input.id); return { deleted: true as const }; }),
   }),
 
   productBrief: router({
@@ -154,7 +195,7 @@ export const appRouter = router({
       const endpoint = (input.endpoint?.trim() || saved?.endpoint)?.replace(/\/+$/, "");
       const apiKey = input.apiKey?.trim() || saved?.apiKey;
       if (!endpoint || !apiKey) throw new Error("Save an AI Provider endpoint and API key first");
-      const response = await fetch(`${endpoint}/models`, { headers: { Accept: "application/json", Authorization: `Bearer ${apiKey}`, "User-Agent": "personal-ai-venture-os" } });
+      const response = await externalFetch(`${endpoint}/models`, { headers: { Accept: "application/json", Authorization: `Bearer ${apiKey}`, "User-Agent": "personal-ai-venture-os" } });
       if (!response.ok) throw new Error(`${input.provider || saved?.provider || "AI Provider"} rejected the connection (${response.status})`);
       const payload = await response.json() as { data?: Array<{ id?: string }> };
       const models = (payload.data ?? []).filter((model): model is { id: string } => typeof model.id === "string").slice(0, 50).map((model) => model.id);
@@ -190,9 +231,9 @@ export const appRouter = router({
     stats: protectedProcedure.input(z.object({ days: z.number().int().min(7).max(30).default(14) }).optional()).query(({ ctx, input }) => getAiTaskRunStats(ctx.user.id, input?.days ?? 14)),
     create: protectedProcedure.input(aiTaskInput).mutation(async ({ ctx, input }) => {
       const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
-      const taskId = await insertAiTask({ userId: ctx.user.id, title: input.title.trim(), instructions: input.instructions.trim(), cadence: input.cadence, runTime: input.runTime, status: input.status });
+      const taskId = await insertAiTask({ userId: ctx.user.id, title: input.title.trim(), instructions: input.instructions.trim(), cadence: input.cadence, runTime: input.runTime, timezone: input.timezone, status: input.status });
       let task = await getAiTask(ctx.user.id, taskId);
-      const cron = cronForAiTask(input.cadence, input.runTime);
+      const cron = cronForAiTask(input.cadence, input.runTime, input.timezone);
       if (task && input.status === "active" && cron) {
         const job = await createHeartbeatJob({ name: `ai-task-${ctx.user.id}-${taskId}`, cron, path: "/api/scheduled/ai-task", description: `Run AI task ${taskId}` }, sessionToken);
         await updateAiTask(ctx.user.id, taskId, { scheduleCronTaskUid: job.taskUid, nextRunAt: job.nextExecutionAt ? new Date(job.nextExecutionAt) : null });
@@ -209,7 +250,7 @@ export const appRouter = router({
       const nextCadence = input.data.cadence ?? existing.cadence;
       const nextRunTime = input.data.runTime ?? existing.runTime;
       const nextStatus = input.data.status ?? existing.status;
-      const cron = cronForAiTask(nextCadence, nextRunTime);
+      const cron = cronForAiTask(nextCadence, nextRunTime, input.data.timezone ?? existing.timezone);
       if (nextStatus === "active" && cron) {
         const job = await createHeartbeatJob({ name: `ai-task-${ctx.user.id}-${input.id}`, cron, path: "/api/scheduled/ai-task", description: `Run AI task ${input.id}` }, sessionToken);
         await updateAiTask(ctx.user.id, input.id, { scheduleCronTaskUid: job.taskUid, nextRunAt: job.nextExecutionAt ? new Date(job.nextExecutionAt) : null });
