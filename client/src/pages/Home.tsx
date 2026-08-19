@@ -154,7 +154,7 @@ export default function Home() {
   const [authenticated, setAuthenticated] = useState(false);
   const [password, setPassword] = useState("1234");
   const [userName, setUserName] = useState("مطور مستقل");
-  if (!authenticated) return <LoginScreen onLogin={(value) => { if (value === password) { setAuthenticated(true); return true; } return false; }} />;
   const content = useMemo(() => { if (active === "overview") return <Overview go={setActive} />; if (active === "tasks") return <Tasks tasks={tasks} setTasks={setTasks} />; if (active === "discovery") return <Discovery />; if (active === "ideas") return <Ideas />; if (active === "projects") return <Projects />; if (active === "settings") return <SettingsPage userName={userName} setUserName={setUserName} password={password} setPassword={setPassword} logout={() => setAuthenticated(false)} />; return <SimplePage page={active} />; }, [active, tasks, password, userName]);
+  if (!authenticated) return <LoginScreen onLogin={(value) => { if (value === password) { setAuthenticated(true); return true; } return false; }} />;
   return <AppShell active={active} setActive={setActive}>{content}<footer className="prototype-footer"><span><CircleDot size={12} /> Prototype · بيانات تجريبية فقط</span><span>Personal AI Venture OS <span className="footer-divider">·</span> v0.2</span></footer></AppShell>;
 }
