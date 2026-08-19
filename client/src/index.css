@@ -129,3 +129,8 @@ button { transition: transform .16s cubic-bezier(.23,1,.32,1), background-color 
 .checkbox-row input { width:15px !important; height:15px; padding:0 !important; accent-color:var(--primary); }
 .telegram-settings-card { grid-column:1 / -1; }
 @media (max-width:760px) { .history-filters { width:100%; justify-content:stretch; } .history-filters > * { flex:1 1 120px; min-width:0; } }
+
+.template-help { color:var(--muted-foreground); font-size:10px; margin:-4px 0 12px; line-height:1.8; }
+.template-help code { border:1px solid var(--border); border-radius:4px; padding:2px 5px; color:var(--foreground); background:var(--secondary); direction:ltr; display:inline-block; margin-inline-start:4px; }
+
+.chart-empty-state { min-height:220px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--muted-foreground); text-align:center; font-size:11px; }

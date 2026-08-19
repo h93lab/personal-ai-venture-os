@@ -63,6 +63,8 @@ export const telegramConnections = mysqlTable("telegram_connections", {
   botToken: text("botToken").notNull(),
   chatId: varchar("chatId", { length: 120 }).notNull(),
   enabled: int("enabled").default(1).notNull(),
+  successTemplate: text("successTemplate"),
+  failureTemplate: text("failureTemplate"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

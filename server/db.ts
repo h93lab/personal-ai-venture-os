@@ -1,7 +1,8 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, githubConnections, aiProviderSettings, aiTasks, aiTaskRuns, telegramConnections, InsertAiTask } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { buildAiTaskStats } from "../shared/ai-task-stats";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -159,10 +160,10 @@ export async function getTelegramConnection(userId: number) {
   return { ...row, botTokenMasked: row.botToken.length <= 8 ? "••••••••" : `${row.botToken.slice(0, 4)}••••${row.botToken.slice(-4)}` };
 }
 
-export async function upsertTelegramConnection(input: { userId: number; botToken: string; chatId: string; enabled?: number }) {
+export async function upsertTelegramConnection(input: { userId: number; botToken: string; chatId: string; enabled?: number; successTemplate?: string | null; failureTemplate?: string | null }) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.insert(telegramConnections).values({ ...input, enabled: input.enabled ?? 1 }).onDuplicateKeyUpdate({ set: { botToken: input.botToken, chatId: input.chatId, enabled: input.enabled ?? 1, updatedAt: new Date() } });
+  await db.insert(telegramConnections).values({ ...input, enabled: input.enabled ?? 1 }).onDuplicateKeyUpdate({ set: { botToken: input.botToken, chatId: input.chatId, enabled: input.enabled ?? 1, successTemplate: input.successTemplate ?? null, failureTemplate: input.failureTemplate ?? null, updatedAt: new Date() } });
 }
 
 export async function deleteTelegramConnection(userId: number) {
@@ -209,6 +210,14 @@ export async function deleteAiTask(userId: number, taskId: number) {
   if (!db) throw new Error("Database is not available");
   await db.delete(aiTaskRuns).where(and(eq(aiTaskRuns.userId, userId), eq(aiTaskRuns.taskId, taskId)));
   await db.delete(aiTasks).where(and(eq(aiTasks.userId, userId), eq(aiTasks.id, taskId)));
+}
+
+export async function getAiTaskRunStats(userId: number, days = 14) {
+  const db = await getDb();
+  if (!db) return [];
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const rows = await db.select({ status: aiTaskRuns.status, startedAt: aiTaskRuns.startedAt }).from(aiTaskRuns).where(and(eq(aiTaskRuns.userId, userId), gte(aiTaskRuns.startedAt, since))).orderBy(aiTaskRuns.startedAt);
+  return buildAiTaskStats(rows, days);
 }
 
 export async function listAiTaskRuns(userId: number, taskId?: number) {

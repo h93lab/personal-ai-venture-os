@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const getTelegramConnection = vi.fn();
 vi.mock("./db", () => ({ getTelegramConnection }));
-const { testTelegramConnection, notifyTelegram } = await import("./telegram");
+const { testTelegramConnection, notifyTelegram, renderTelegramTemplate } = await import("./telegram");
 
 describe("Telegram notifications", () => {
   beforeEach(() => { vi.restoreAllMocks(); vi.clearAllMocks(); });
@@ -12,6 +12,10 @@ describe("Telegram notifications", () => {
     const result = await testTelegramConnection({ botToken: "12345678901234567890:token", chatId: "123" });
     expect(result).toEqual({ connected: true, botName: "venture_bot" });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("renders task title, result, and error variables in a custom template", () => {
+    expect(renderTelegramTemplate("{{task_title}} | {{result}} | {{error}}", { task_title: "Market scan", result: "3 ideas", error: "" })).toBe("Market scan | 3 ideas | ");
   });
 
   it("skips notification when Telegram is not configured", async () => {

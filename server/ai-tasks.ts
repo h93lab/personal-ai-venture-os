@@ -18,12 +18,12 @@ export async function executeAiTask(userId: number, taskId: number) {
     const result = typeof content === "string" ? content : JSON.stringify(content ?? response);
     await completeAiTaskRun(userId, runId, { status: "success", result });
     await markAiTaskRun(userId, taskId, startedAt);
-    try { await notifyTelegram(userId, `<b>اكتملت مهمة AI</b>\n${task.title}\n\n${result.slice(0, 2500)}`); } catch (notificationError) { console.warn("[Telegram] Success notification failed", notificationError); }
+    try { await notifyTelegram(userId, { kind: "success", taskTitle: task.title, result: result.slice(0, 2500) }); } catch (notificationError) { console.warn("[Telegram] Success notification failed", notificationError); }
     return { runId, status: "success" as const, result, completedAt: new Date() };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await completeAiTaskRun(userId, runId, { status: "failed", error: message });
-    try { await notifyTelegram(userId, `<b>فشلت مهمة AI</b>\n${task.title}\n\n${message.slice(0, 1500)}`); } catch (notificationError) { console.warn("[Telegram] Failure notification failed", notificationError); }
+    try { await notifyTelegram(userId, { kind: "failure", taskTitle: task.title, error: message.slice(0, 1500) }); } catch (notificationError) { console.warn("[Telegram] Failure notification failed", notificationError); }
     throw error;
   }
 }

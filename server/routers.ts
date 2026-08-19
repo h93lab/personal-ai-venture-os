@@ -8,7 +8,7 @@ import { invokeLLM, listLLMModels } from "./_core/llm";
 import { deleteGithubConnection, getGithubConnection, updateGithubSchedule, updateGithubSync, upsertGithubConnection, getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings, listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns } from "./db";
 import { createHeartbeatJob, deleteHeartbeatJob } from "./_core/heartbeat";
 import { executeAiTask } from "./ai-tasks";
-import { getTelegramConnection, upsertTelegramConnection, deleteTelegramConnection } from "./db";
+import { getTelegramConnection, upsertTelegramConnection, deleteTelegramConnection, getAiTaskRunStats } from "./db";
 import { testTelegramConnection } from "./telegram";
 
 export function maskGithubToken(token: string | undefined) {
@@ -49,7 +49,7 @@ export async function githubStatusForConnection(connection: { token: string; rep
   };
 }
 
-const telegramInput = z.object({ botToken: z.string().min(20).optional(), chatId: z.string().min(1).max(120), enabled: z.boolean().default(true) });
+const telegramInput = z.object({ botToken: z.string().min(20).optional(), chatId: z.string().min(1).max(120), enabled: z.boolean().default(true), successTemplate: z.string().max(4000).optional(), failureTemplate: z.string().max(4000).optional() });
 
 const aiTaskInput = z.object({
   title: z.string().min(2).max(180),
@@ -165,15 +165,15 @@ export const appRouter = router({
   telegram: router({
     getSettings: protectedProcedure.query(async ({ ctx }) => {
       const settings = await getTelegramConnection(ctx.user.id);
-      return settings ? { connected: true, chatId: settings.chatId, enabled: settings.enabled === 1, botTokenMasked: settings.botTokenMasked } : { connected: false, chatId: "", enabled: false, botTokenMasked: null };
+      return settings ? { connected: true, chatId: settings.chatId, enabled: settings.enabled === 1, botTokenMasked: settings.botTokenMasked, successTemplate: settings.successTemplate, failureTemplate: settings.failureTemplate } : { connected: false, chatId: "", enabled: false, botTokenMasked: null, successTemplate: null, failureTemplate: null };
     }),
     saveSettings: protectedProcedure.input(telegramInput).mutation(async ({ ctx, input }) => {
       const existing = await getTelegramConnection(ctx.user.id);
       const botToken = input.botToken?.trim() || existing?.botToken;
       if (!botToken) throw new Error("أدخل Bot Token أولًا");
-      await upsertTelegramConnection({ userId: ctx.user.id, botToken, chatId: input.chatId.trim(), enabled: input.enabled ? 1 : 0 });
+      await upsertTelegramConnection({ userId: ctx.user.id, botToken, chatId: input.chatId.trim(), enabled: input.enabled ? 1 : 0, successTemplate: input.successTemplate?.trim() || null, failureTemplate: input.failureTemplate?.trim() || null });
       const saved = await getTelegramConnection(ctx.user.id);
-      return { connected: true, chatId: input.chatId.trim(), enabled: input.enabled, botTokenMasked: saved?.botTokenMasked ?? null };
+      return { connected: true, chatId: input.chatId.trim(), enabled: input.enabled, botTokenMasked: saved?.botTokenMasked ?? null, successTemplate: saved?.successTemplate ?? null, failureTemplate: saved?.failureTemplate ?? null };
     }),
     testConnection: protectedProcedure.input(z.object({ botToken: z.string().min(20).optional(), chatId: z.string().min(1).max(120) })).mutation(async ({ ctx, input }) => {
       const existing = await getTelegramConnection(ctx.user.id);
@@ -187,6 +187,7 @@ export const appRouter = router({
   aiTasks: router({
     list: protectedProcedure.query(({ ctx }) => listAiTasks(ctx.user.id)),
     runs: protectedProcedure.input(z.object({ taskId: z.number().int().positive().optional() }).optional()).query(({ ctx, input }) => listAiTaskRuns(ctx.user.id, input?.taskId)),
+    stats: protectedProcedure.input(z.object({ days: z.number().int().min(7).max(30).default(14) }).optional()).query(({ ctx, input }) => getAiTaskRunStats(ctx.user.id, input?.days ?? 14)),
     create: protectedProcedure.input(aiTaskInput).mutation(async ({ ctx, input }) => {
       const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
       const taskId = await insertAiTask({ userId: ctx.user.id, title: input.title.trim(), instructions: input.instructions.trim(), cadence: input.cadence, runTime: input.runTime, status: input.status });
