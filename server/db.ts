@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, githubConnections, aiProviderSettings } from "../drizzle/schema";
+import { InsertUser, users, githubConnections, aiProviderSettings, aiTasks, aiTaskRuns, InsertAiTask } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -148,4 +148,70 @@ export async function deleteAiProviderSettings(userId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
   await db.delete(aiProviderSettings).where(eq(aiProviderSettings.userId, userId));
+}
+
+export async function listAiTasks(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(aiTasks).where(eq(aiTasks.userId, userId)).orderBy(desc(aiTasks.createdAt));
+}
+
+export async function getAiTask(userId: number, taskId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(aiTasks).where(and(eq(aiTasks.userId, userId), eq(aiTasks.id, taskId))).limit(1);
+  return rows[0];
+}
+
+export async function getAiTaskByScheduleUid(taskUid: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(aiTasks).where(eq(aiTasks.scheduleCronTaskUid, taskUid)).limit(1);
+  return rows[0];
+}
+
+export async function insertAiTask(input: InsertAiTask) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const result = await db.insert(aiTasks).values(input);
+  return Number(result[0].insertId);
+}
+
+export async function updateAiTask(userId: number, taskId: number, patch: Partial<Pick<InsertAiTask, "title" | "instructions" | "cadence" | "runTime" | "status" | "nextRunAt" | "scheduleCronTaskUid">>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(aiTasks).set({ ...patch, updatedAt: new Date() }).where(and(eq(aiTasks.userId, userId), eq(aiTasks.id, taskId)));
+}
+
+export async function deleteAiTask(userId: number, taskId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.delete(aiTaskRuns).where(and(eq(aiTaskRuns.userId, userId), eq(aiTaskRuns.taskId, taskId)));
+  await db.delete(aiTasks).where(and(eq(aiTasks.userId, userId), eq(aiTasks.id, taskId)));
+}
+
+export async function listAiTaskRuns(userId: number, taskId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const condition = taskId === undefined ? eq(aiTaskRuns.userId, userId) : and(eq(aiTaskRuns.userId, userId), eq(aiTaskRuns.taskId, taskId));
+  return db.select().from(aiTaskRuns).where(condition).orderBy(desc(aiTaskRuns.createdAt)).limit(100);
+}
+
+export async function insertAiTaskRun(input: { taskId: number; userId: number; model?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  const result = await db.insert(aiTaskRuns).values({ ...input, status: "running" });
+  return Number(result[0].insertId);
+}
+
+export async function completeAiTaskRun(userId: number, runId: number, patch: { status: "success" | "failed"; result?: string | null; error?: string | null; model?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(aiTaskRuns).set({ ...patch, completedAt: new Date() }).where(and(eq(aiTaskRuns.userId, userId), eq(aiTaskRuns.id, runId)));
+}
+
+export async function markAiTaskRun(userId: number, taskId: number, lastRunAt: Date) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(aiTasks).set({ lastRunAt, updatedAt: new Date() }).where(and(eq(aiTasks.userId, userId), eq(aiTasks.id, taskId)));
 }

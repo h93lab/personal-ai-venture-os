@@ -5,8 +5,9 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { invokeLLM, listLLMModels } from "./_core/llm";
-import { deleteGithubConnection, getGithubConnection, updateGithubSchedule, updateGithubSync, upsertGithubConnection, getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings } from "./db";
+import { deleteGithubConnection, getGithubConnection, updateGithubSchedule, updateGithubSync, upsertGithubConnection, getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings, listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns } from "./db";
 import { createHeartbeatJob, deleteHeartbeatJob } from "./_core/heartbeat";
+import { executeAiTask } from "./ai-tasks";
 
 export function maskGithubToken(token: string | undefined) {
   if (!token) return null;
@@ -44,6 +45,20 @@ export async function githubStatusForConnection(connection: { token: string; rep
     lastPush: repo.pushed_at,
     health: Math.max(0, Math.min(100, 55 + Math.min(commits.length * 4, 24) - Math.min(issues.length * 2, 20) - Math.min(pulls.length, 10))),
   };
+}
+
+const aiTaskInput = z.object({
+  title: z.string().min(2).max(180),
+  instructions: z.string().min(3).max(10000),
+  cadence: z.enum(["manual", "daily", "weekly"]),
+  runTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  status: z.enum(["active", "paused"]).default("active"),
+});
+
+function cronForAiTask(cadence: "manual" | "daily" | "weekly", runTime: string) {
+  if (cadence === "manual") return null;
+  const [hour, minute] = runTime.split(":");
+  return cadence === "weekly" ? `0 ${minute} ${hour} * * 1` : `0 ${minute} ${hour} * * *`;
 }
 
 const githubRepoInput = z.object({
@@ -141,6 +156,50 @@ export const appRouter = router({
       const models = (payload.data ?? []).filter((model): model is { id: string } => typeof model.id === "string").slice(0, 50).map((model) => model.id);
       return { connected: true, modelCount: models.length, models };
     }),
+  }),
+
+  aiTasks: router({
+    list: protectedProcedure.query(({ ctx }) => listAiTasks(ctx.user.id)),
+    runs: protectedProcedure.input(z.object({ taskId: z.number().int().positive().optional() }).optional()).query(({ ctx, input }) => listAiTaskRuns(ctx.user.id, input?.taskId)),
+    create: protectedProcedure.input(aiTaskInput).mutation(async ({ ctx, input }) => {
+      const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
+      const taskId = await insertAiTask({ userId: ctx.user.id, title: input.title.trim(), instructions: input.instructions.trim(), cadence: input.cadence, runTime: input.runTime, status: input.status });
+      let task = await getAiTask(ctx.user.id, taskId);
+      const cron = cronForAiTask(input.cadence, input.runTime);
+      if (task && input.status === "active" && cron) {
+        const job = await createHeartbeatJob({ name: `ai-task-${ctx.user.id}-${taskId}`, cron, path: "/api/scheduled/ai-task", description: `Run AI task ${taskId}` }, sessionToken);
+        await updateAiTask(ctx.user.id, taskId, { scheduleCronTaskUid: job.taskUid, nextRunAt: job.nextExecutionAt ? new Date(job.nextExecutionAt) : null });
+        task = await getAiTask(ctx.user.id, taskId);
+      }
+      return task;
+    }),
+    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), data: aiTaskInput.partial() })).mutation(async ({ ctx, input }) => {
+      const existing = await getAiTask(ctx.user.id, input.id);
+      if (!existing) throw new Error("AI task not found");
+      const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
+      if (existing.scheduleCronTaskUid) await deleteHeartbeatJob(existing.scheduleCronTaskUid, sessionToken);
+      await updateAiTask(ctx.user.id, input.id, { ...input.data, scheduleCronTaskUid: null, nextRunAt: null });
+      const nextCadence = input.data.cadence ?? existing.cadence;
+      const nextRunTime = input.data.runTime ?? existing.runTime;
+      const nextStatus = input.data.status ?? existing.status;
+      const cron = cronForAiTask(nextCadence, nextRunTime);
+      if (nextStatus === "active" && cron) {
+        const job = await createHeartbeatJob({ name: `ai-task-${ctx.user.id}-${input.id}`, cron, path: "/api/scheduled/ai-task", description: `Run AI task ${input.id}` }, sessionToken);
+        await updateAiTask(ctx.user.id, input.id, { scheduleCronTaskUid: job.taskUid, nextRunAt: job.nextExecutionAt ? new Date(job.nextExecutionAt) : null });
+      }
+      return getAiTask(ctx.user.id, input.id);
+    }),
+    delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const existing = await getAiTask(ctx.user.id, input.id);
+      if (!existing) return { deleted: true } as const;
+      if (existing.scheduleCronTaskUid) {
+        const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
+        await deleteHeartbeatJob(existing.scheduleCronTaskUid, sessionToken);
+      }
+      await deleteAiTask(ctx.user.id, input.id);
+      return { deleted: true } as const;
+    }),
+    run: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ ctx, input }) => executeAiTask(ctx.user.id, input.id)),
   }),
 
   github: router({

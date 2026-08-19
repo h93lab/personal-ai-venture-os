@@ -56,3 +56,37 @@ export const aiProviderSettings = mysqlTable("ai_provider_settings", {
 
 export type AiProviderSetting = typeof aiProviderSettings.$inferSelect;
 export type InsertAiProviderSetting = typeof aiProviderSettings.$inferInsert;
+
+export const aiTasks = mysqlTable("ai_tasks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  title: varchar("title", { length: 180 }).notNull(),
+  instructions: text("instructions").notNull(),
+  cadence: mysqlEnum("cadence", ["manual", "daily", "weekly"]).default("daily").notNull(),
+  runTime: varchar("runTime", { length: 5 }).default("08:00").notNull(),
+  status: mysqlEnum("status", ["active", "paused"]).default("active").notNull(),
+  scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
+  lastRunAt: timestamp("lastRunAt"),
+  nextRunAt: timestamp("nextRunAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AiTask = typeof aiTasks.$inferSelect;
+export type InsertAiTask = typeof aiTasks.$inferInsert;
+
+export const aiTaskRuns = mysqlTable("ai_task_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  taskId: int("taskId").notNull(),
+  userId: int("userId").notNull(),
+  status: mysqlEnum("status", ["running", "success", "failed"]).default("running").notNull(),
+  result: text("result"),
+  error: text("error"),
+  model: varchar("model", { length: 200 }),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AiTaskRun = typeof aiTaskRuns.$inferSelect;
+export type InsertAiTaskRun = typeof aiTaskRuns.$inferInsert;
