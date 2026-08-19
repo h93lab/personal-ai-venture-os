@@ -8,6 +8,8 @@ import { invokeLLM, listLLMModels } from "./_core/llm";
 import { deleteGithubConnection, getGithubConnection, updateGithubSchedule, updateGithubSync, upsertGithubConnection, getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings, listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns } from "./db";
 import { createHeartbeatJob, deleteHeartbeatJob } from "./_core/heartbeat";
 import { executeAiTask } from "./ai-tasks";
+import { getTelegramConnection, upsertTelegramConnection, deleteTelegramConnection } from "./db";
+import { testTelegramConnection } from "./telegram";
 
 export function maskGithubToken(token: string | undefined) {
   if (!token) return null;
@@ -46,6 +48,8 @@ export async function githubStatusForConnection(connection: { token: string; rep
     health: Math.max(0, Math.min(100, 55 + Math.min(commits.length * 4, 24) - Math.min(issues.length * 2, 20) - Math.min(pulls.length, 10))),
   };
 }
+
+const telegramInput = z.object({ botToken: z.string().min(20).optional(), chatId: z.string().min(1).max(120), enabled: z.boolean().default(true) });
 
 const aiTaskInput = z.object({
   title: z.string().min(2).max(180),
@@ -156,6 +160,28 @@ export const appRouter = router({
       const models = (payload.data ?? []).filter((model): model is { id: string } => typeof model.id === "string").slice(0, 50).map((model) => model.id);
       return { connected: true, modelCount: models.length, models };
     }),
+  }),
+
+  telegram: router({
+    getSettings: protectedProcedure.query(async ({ ctx }) => {
+      const settings = await getTelegramConnection(ctx.user.id);
+      return settings ? { connected: true, chatId: settings.chatId, enabled: settings.enabled === 1, botTokenMasked: settings.botTokenMasked } : { connected: false, chatId: "", enabled: false, botTokenMasked: null };
+    }),
+    saveSettings: protectedProcedure.input(telegramInput).mutation(async ({ ctx, input }) => {
+      const existing = await getTelegramConnection(ctx.user.id);
+      const botToken = input.botToken?.trim() || existing?.botToken;
+      if (!botToken) throw new Error("أدخل Bot Token أولًا");
+      await upsertTelegramConnection({ userId: ctx.user.id, botToken, chatId: input.chatId.trim(), enabled: input.enabled ? 1 : 0 });
+      const saved = await getTelegramConnection(ctx.user.id);
+      return { connected: true, chatId: input.chatId.trim(), enabled: input.enabled, botTokenMasked: saved?.botTokenMasked ?? null };
+    }),
+    testConnection: protectedProcedure.input(z.object({ botToken: z.string().min(20).optional(), chatId: z.string().min(1).max(120) })).mutation(async ({ ctx, input }) => {
+      const existing = await getTelegramConnection(ctx.user.id);
+      const botToken = input.botToken?.trim() || existing?.botToken;
+      if (!botToken) throw new Error("أدخل Bot Token أولًا");
+      return testTelegramConnection({ botToken, chatId: input.chatId.trim() });
+    }),
+    deleteSettings: protectedProcedure.mutation(async ({ ctx }) => { await deleteTelegramConnection(ctx.user.id); return { deleted: true as const }; }),
   }),
 
   aiTasks: router({

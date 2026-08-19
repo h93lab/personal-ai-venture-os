@@ -10,11 +10,12 @@ const listAiTaskRuns = vi.fn();
 const insertAiTaskRun = vi.fn();
 const completeAiTaskRun = vi.fn();
 const markAiTaskRun = vi.fn();
+const getTelegramConnection = vi.fn();
 const invokeLLM = vi.fn();
 const createHeartbeatJob = vi.fn();
 const deleteHeartbeatJob = vi.fn();
 
-vi.mock("./db", () => ({ listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns, insertAiTaskRun, completeAiTaskRun, markAiTaskRun }));
+vi.mock("./db", () => ({ listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns, insertAiTaskRun, completeAiTaskRun, markAiTaskRun, getTelegramConnection }));
 vi.mock("./_core/llm", () => ({ invokeLLM, listLLMModels: vi.fn() }));
 vi.mock("./_core/heartbeat", () => ({ createHeartbeatJob, deleteHeartbeatJob }));
 
@@ -52,6 +53,14 @@ describe("AI task CRUD", () => {
     expect(createHeartbeatJob).not.toHaveBeenCalled();
     await caller.aiTasks.delete({ id: 7 });
     expect(deleteAiTask).toHaveBeenCalledWith(42, 7);
+  });
+
+  it("pauses a scheduled task and removes its Heartbeat job", async () => {
+    getAiTask.mockResolvedValue({ id: 8, userId: 42, title: "Scheduled", cadence: "daily", runTime: "08:00", status: "active", scheduleCronTaskUid: "heartbeat-8" });
+    const caller = appRouter.createCaller(context());
+    await caller.aiTasks.update({ id: 8, data: { status: "paused" } });
+    expect(deleteHeartbeatJob).toHaveBeenCalledWith("heartbeat-8", "");
+    expect(updateAiTask).toHaveBeenCalledWith(42, 8, { status: "paused", scheduleCronTaskUid: null, nextRunAt: null });
   });
 
   it("runs a task and persists the generated result", async () => {

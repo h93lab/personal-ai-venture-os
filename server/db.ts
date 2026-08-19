@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, githubConnections, aiProviderSettings, aiTasks, aiTaskRuns, InsertAiTask } from "../drizzle/schema";
+import { InsertUser, users, githubConnections, aiProviderSettings, aiTasks, aiTaskRuns, telegramConnections, InsertAiTask } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -148,6 +148,27 @@ export async function deleteAiProviderSettings(userId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
   await db.delete(aiProviderSettings).where(eq(aiProviderSettings.userId, userId));
+}
+
+export async function getTelegramConnection(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(telegramConnections).where(eq(telegramConnections.userId, userId)).limit(1);
+  const row = rows[0];
+  if (!row) return undefined;
+  return { ...row, botTokenMasked: row.botToken.length <= 8 ? "••••••••" : `${row.botToken.slice(0, 4)}••••${row.botToken.slice(-4)}` };
+}
+
+export async function upsertTelegramConnection(input: { userId: number; botToken: string; chatId: string; enabled?: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.insert(telegramConnections).values({ ...input, enabled: input.enabled ?? 1 }).onDuplicateKeyUpdate({ set: { botToken: input.botToken, chatId: input.chatId, enabled: input.enabled ?? 1, updatedAt: new Date() } });
+}
+
+export async function deleteTelegramConnection(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.delete(telegramConnections).where(eq(telegramConnections.userId, userId));
 }
 
 export async function listAiTasks(userId: number) {

@@ -57,6 +57,19 @@ export const aiProviderSettings = mysqlTable("ai_provider_settings", {
 export type AiProviderSetting = typeof aiProviderSettings.$inferSelect;
 export type InsertAiProviderSetting = typeof aiProviderSettings.$inferInsert;
 
+export const telegramConnections = mysqlTable("telegram_connections", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  botToken: text("botToken").notNull(),
+  chatId: varchar("chatId", { length: 120 }).notNull(),
+  enabled: int("enabled").default(1).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TelegramConnection = typeof telegramConnections.$inferSelect;
+export type InsertTelegramConnection = typeof telegramConnections.$inferInsert;
+
 export const aiTasks = mysqlTable("ai_tasks", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
