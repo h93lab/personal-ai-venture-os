@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, githubConnections } from "../drizzle/schema";
+import { InsertUser, users, githubConnections, aiProviderSettings } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -96,16 +96,56 @@ export async function getGithubConnection(userId: number) {
   return rows[0];
 }
 
-export async function upsertGithubConnection(input: { userId: number; token: string; repoOwner: string; repoName: string }) {
+export async function upsertGithubConnection(input: { userId: number; token: string; repoOwner: string; repoName: string; healthThreshold?: number; refreshMinutes?: number; scheduleCronTaskUid?: string | null }) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
   await db.insert(githubConnections).values(input).onDuplicateKeyUpdate({
-    set: { token: input.token, repoOwner: input.repoOwner, repoName: input.repoName, updatedAt: new Date() },
+    set: { token: input.token, repoOwner: input.repoOwner, repoName: input.repoName, healthThreshold: input.healthThreshold ?? 50, refreshMinutes: input.refreshMinutes ?? 60, scheduleCronTaskUid: input.scheduleCronTaskUid ?? null, updatedAt: new Date() },
   });
+}
+
+export async function getGithubConnectionByTaskUid(taskUid: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(githubConnections).where(eq(githubConnections.scheduleCronTaskUid, taskUid)).limit(1);
+  return rows[0];
+}
+
+export async function updateGithubSync(userId: number, status: unknown) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(githubConnections).set({ lastStatusJson: JSON.stringify(status), lastSyncedAt: new Date(), updatedAt: new Date() }).where(eq(githubConnections.userId, userId));
+}
+
+export async function updateGithubSchedule(userId: number, scheduleCronTaskUid: string | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(githubConnections).set({ scheduleCronTaskUid, updatedAt: new Date() }).where(eq(githubConnections.userId, userId));
 }
 
 export async function deleteGithubConnection(userId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
   await db.delete(githubConnections).where(eq(githubConnections.userId, userId));
+}
+
+export async function getAiProviderSettings(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(aiProviderSettings).where(eq(aiProviderSettings.userId, userId)).limit(1);
+  const row = rows[0];
+  if (!row) return undefined;
+  return { provider: row.provider, endpoint: row.endpoint, selectedModel: row.selectedModel, apiKey: row.apiKey, maskedApiKey: `${row.apiKey.slice(0, 4)}••••${row.apiKey.slice(-4)}` };
+}
+
+export async function upsertAiProviderSettings(input: { userId: number; provider: string; endpoint: string; apiKey: string; selectedModel?: string | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.insert(aiProviderSettings).values(input).onDuplicateKeyUpdate({ set: { provider: input.provider, endpoint: input.endpoint, apiKey: input.apiKey, selectedModel: input.selectedModel ?? null, updatedAt: new Date() } });
+}
+
+export async function deleteAiProviderSettings(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.delete(aiProviderSettings).where(eq(aiProviderSettings.userId, userId));
 }

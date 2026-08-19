@@ -31,9 +31,28 @@ export const githubConnections = mysqlTable("github_connections", {
   token: text("token").notNull(),
   repoOwner: varchar("repoOwner", { length: 120 }).notNull(),
   repoName: varchar("repoName", { length: 200 }).notNull(),
+  healthThreshold: int("healthThreshold").default(50).notNull(),
+  refreshMinutes: int("refreshMinutes").default(60).notNull(),
+  scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
+  lastStatusJson: text("lastStatusJson"),
+  lastSyncedAt: timestamp("lastSyncedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
 export type GithubConnection = typeof githubConnections.$inferSelect;
 export type InsertGithubConnection = typeof githubConnections.$inferInsert;
+
+export const aiProviderSettings = mysqlTable("ai_provider_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  provider: varchar("provider", { length: 120 }).notNull(),
+  endpoint: varchar("endpoint", { length: 500 }).notNull(),
+  apiKey: text("apiKey").notNull(),
+  selectedModel: varchar("selectedModel", { length: 200 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AiProviderSetting = typeof aiProviderSettings.$inferSelect;
+export type InsertAiProviderSetting = typeof aiProviderSettings.$inferInsert;

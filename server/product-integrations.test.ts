@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrpcContext } from "./_core/context";
 
 const invokeLLM = vi.fn();
+const listLLMModels = vi.fn();
+const getAiProviderSettings = vi.fn();
+const upsertAiProviderSettings = vi.fn();
+const deleteAiProviderSettings = vi.fn();
 const getGithubConnection = vi.fn();
 const upsertGithubConnection = vi.fn();
 const deleteGithubConnection = vi.fn();
 
-vi.mock("./_core/llm", () => ({ invokeLLM }));
-vi.mock("./db", () => ({ getGithubConnection, upsertGithubConnection, deleteGithubConnection }));
+vi.mock("./_core/llm", () => ({ invokeLLM, listLLMModels }));
+vi.mock("./db", () => ({ getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings, getGithubConnection, upsertGithubConnection, deleteGithubConnection }));
 
 const { appRouter } = await import("./routers");
 
@@ -37,6 +41,37 @@ describe("Product Brief integration", () => {
   });
 });
 
+describe("AI connection integration", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("tests the built-in AI connection and returns available models", async () => {
+    listLLMModels.mockResolvedValue({ data: [{ id: "model-a" }, { id: "model-b" }] });
+    const result = await appRouter.createCaller(context()).ai.testConnection();
+    expect(result).toEqual({ connected: true, modelCount: 2, models: [{ id: "model-a" }, { id: "model-b" }] });
+    expect(listLLMModels).toHaveBeenCalledOnce();
+  });
+});
+
+describe("GitHub connection integration", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ full_name: "owner/repo", stargazers_count: 2, open_issues_count: 1, pushed_at: "2026-08-19T00:00:00Z" }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ([{ sha: "abc", commit: { author: { date: "2026-08-19T00:00:00Z" } } }]) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ([{ id: 1 }]) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ([]) }));
+  });
+
+  it("tests GitHub with the saved token when no new token is supplied", async () => {
+    getGithubConnection.mockResolvedValue({ token: "ghp_1234567890abcdef", repoOwner: "owner", repoName: "repo" });
+    const result = await appRouter.createCaller(context()).github.testConnection({ repoOwner: "owner", repoName: "repo" });
+    expect(result.connected).toBe(true);
+    expect(result.repo).toBe("owner/repo");
+    expect(result.token).toBe("ghp_••••cdef");
+    expect(fetch).toHaveBeenCalledTimes(4);
+  });
+});
+
 describe("GitHub settings integration", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -46,7 +81,7 @@ describe("GitHub settings integration", () => {
     const settings = await caller.github.getSettings();
     expect(settings.token).toBe("ghp_••••cdef");
     await caller.github.saveSettings({ repoOwner: "new-owner", repoName: "new-repo" });
-    expect(upsertGithubConnection).toHaveBeenCalledWith({ userId: 7, token: "ghp_1234567890abcdef", repoOwner: "new-owner", repoName: "new-repo" });
+    expect(upsertGithubConnection).toHaveBeenCalledWith({ userId: 7, token: "ghp_1234567890abcdef", repoOwner: "new-owner", repoName: "new-repo", healthThreshold: 50, refreshMinutes: 60, scheduleCronTaskUid: null });
   });
 
   it("deletes the current user's GitHub connection", async () => {
