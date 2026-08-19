@@ -160,6 +160,6 @@
 - [x] إضافة إعدادات Telegram آمنة للتحقق من Bot Token وChat ID.
 - [x] إرسال إشعار Telegram عند نجاح أو فشل تشغيل مهمة AI.
 - [x] إضافة اختبارات للفلاتر والإيقاف/الاستئناف وإشعارات Telegram.
-- [ ] إجراء فحص TypeScript وVitest وbuild وفحص بصري ثم حفظ checkpoint.
+- [x] إجراء فحص TypeScript وVitest وbuild وفحص بصري ثم حفظ checkpoint.
 
 - [x] تحويل إعدادات Telegram لتُدار لكل مستخدم من لوحة Settings بدل الاعتماد على أسرار بيئية ثابتة.
