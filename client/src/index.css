@@ -107,3 +107,11 @@ button { transition: transform .16s cubic-bezier(.23,1,.32,1), background-color 
 .chart-card { min-width:0; padding:18px; } .charts-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px; margin:0 0 18px; } .chart-wrap { height:245px; margin-top:12px; } .chart-card select { border:1px solid var(--input); background:var(--background); color:var(--foreground); border-radius:var(--radius); padding:7px 9px; font:inherit; font-size:10px; } .chart-note { display:block; margin-top:5px; color:var(--muted-foreground); font-size:10px; } .chart-legend { display:flex; gap:12px; color:var(--muted-foreground); font-size:10px; white-space:nowrap; } .chart-legend span { display:flex; align-items:center; gap:5px; } .legend-line { display:inline-block; width:18px; border-top:2px solid var(--foreground); } .legend-line.dashed { border-top-style:dashed; border-color:var(--muted-foreground); }
 .page-actions { display:flex; align-items:center; gap:7px; flex-wrap:wrap; } .page-actions .small { min-height:32px; }
 @media (max-width: 760px) { .charts-grid { grid-template-columns:1fr; } .chart-wrap { height:220px; } .page-actions { width:100%; justify-content:flex-start; } .page-actions .primary-button { margin-inline-start:auto; } }
+
+/* Final strict monochrome pass: no semantic hues in the UI. */
+[class*="amber"], [class*="blue"], [class*="green"], [class*="violet"], [class*="slate"], [class*="yellow"], [class*="purple"] { color:var(--foreground) !important; background-color:var(--secondary) !important; border-color:var(--border) !important; }
+[class*="amber"] *, [class*="blue"] *, [class*="green"] *, [class*="violet"] *, [class*="slate"] *, [class*="yellow"] *, [class*="purple"] * { color:inherit !important; }
+.brand-mark img, .login-logo img, .discovery-art img, .empty-hero { filter:grayscale(1) contrast(1.15); }
+.signal-rule, .banner-signal-rule, .pill-dot, .live-dot, .notification-dot { background:#000 !important; }
+.dark .signal-rule, .dark .banner-signal-rule, .dark .pill-dot, .dark .live-dot, .dark .notification-dot { background:#fff !important; }
+.modal-card input:focus, .modal-card textarea:focus, .modal-card select:focus { border-color:var(--foreground) !important; box-shadow:0 0 0 3px color-mix(in oklab, var(--foreground) 12%, transparent) !important; }
