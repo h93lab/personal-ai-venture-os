@@ -82,3 +82,7 @@ button { transition: transform .16s cubic-bezier(.23,1,.32,1), background-color 
 
 .dark body { background-image: none; background-color: #000; }
 .dark .app-shell, .dark .main-shell, .dark .topbar { background: #000; }
+
+.remember-row { display:flex !important; align-items:center; gap:8px; color:var(--muted-foreground); font-size:10px !important; font-weight:600 !important; margin:-2px 0 0 !important; cursor:pointer; } .remember-row input { width:15px; height:15px; margin:0; accent-color:var(--primary); } .primary-button:disabled, .outline-button:disabled { cursor:wait; opacity:.72; } .spin { animation: spin .8s linear infinite; } @keyframes spin { to { transform:rotate(360deg); } }
+.api-settings-card { grid-column:1 / -1; } .api-actions { display:flex; align-items:center; gap:10px; margin:-2px 0 15px; } .api-state { color:var(--muted-foreground); font-size:10px; } .settings-card select { width:100%; border:1px solid var(--input); background:var(--background); color:var(--foreground); border-radius:var(--radius); padding:10px 11px; font-size:12px; }
+.dark .login-card, .dark .settings-card, .dark .panel { box-shadow:none; }
