@@ -5,12 +5,13 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { invokeLLM, listLLMModels } from "./_core/llm";
-import { deleteGithubConnection, getGithubConnection, updateGithubSchedule, updateGithubSync, upsertGithubConnection, getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings, listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns, updateUserProfile, listProjects, insertProject, updateProject, deleteProject, listIdeas, insertIdea, updateIdea, deleteIdea, listKnowledgeItems, insertKnowledgeItem, updateKnowledgeItem, deleteKnowledgeItem, listDiscoverySignals, insertDiscoverySignal, updateDiscoverySignal, deleteDiscoverySignal } from "./db";
+import { deleteGithubConnection, getGithubConnection, updateGithubSchedule, updateGithubSync, upsertGithubConnection, getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings, listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns, updateUserProfile, listProjects, insertProject, updateProject, deleteProject, listIdeas, insertIdea, updateIdea, deleteIdea, listKnowledgeItems, insertKnowledgeItem, updateKnowledgeItem, deleteKnowledgeItem, listDiscoverySignals, insertDiscoverySignal, updateDiscoverySignal, deleteDiscoverySignal, listCompetitors, insertCompetitor, updateCompetitor, deleteCompetitor, getDiscoverySettings, upsertDiscoverySettings } from "./db";
 import { createHeartbeatJob, deleteHeartbeatJob } from "./_core/heartbeat";
 import { executeAiTask } from "./ai-tasks";
 import { getTelegramConnection, upsertTelegramConnection, deleteTelegramConnection, getAiTaskRunStats } from "./db";
 import { testTelegramConnection } from "./telegram";
 import { externalFetch } from "./http-client";
+import { fetchHackerNewsSignals, refreshDiscoveryForUser } from "./discovery-refresh";
 
 export function maskGithubToken(token: string | undefined) {
   if (!token) return null;
@@ -123,11 +124,38 @@ export const appRouter = router({
     delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { await deleteIdea(ctx.user.id, input.id); return { deleted: true as const }; }),
   }),
 
+  competitors: router({
+    list: protectedProcedure.query(({ ctx }) => listCompetitors(ctx.user.id)),
+    create: protectedProcedure.input(z.object({ name: z.string().trim().min(2).max(220), category: z.string().trim().min(1).max(120), url: z.string().url().max(1000).optional(), threatLevel: z.number().int().min(0).max(100).default(0), notes: z.string().max(5000).optional(), status: z.string().trim().min(1).max(80).default("watching") })).mutation(async ({ ctx, input }) => { const id = await insertCompetitor({ ...input, userId: ctx.user.id }); return { id }; }),
+    update: protectedProcedure.input(z.object({ id: z.number().int().positive(), data: z.object({ name: z.string().trim().min(2).max(220).optional(), category: z.string().trim().min(1).max(120).optional(), url: z.string().url().max(1000).nullable().optional(), threatLevel: z.number().int().min(0).max(100).optional(), notes: z.string().max(5000).nullable().optional(), status: z.string().trim().min(1).max(80).optional() }) })).mutation(async ({ ctx, input }) => { await updateCompetitor(ctx.user.id, input.id, input.data); return { updated: true as const }; }),
+    delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { await deleteCompetitor(ctx.user.id, input.id); return { deleted: true as const }; }),
+  }),
+
   discovery: router({
     list: protectedProcedure.query(({ ctx }) => listDiscoverySignals(ctx.user.id)),
     create: protectedProcedure.input(z.object({ title: z.string().trim().min(2).max(220), type: z.string().trim().min(1).max(120), score: z.number().int().min(0).max(100).default(0), sourceCount: z.number().int().min(0).max(10000).default(0), description: z.string().max(5000).optional(), verificationDays: z.number().int().min(0).max(365).default(2), status: z.string().trim().min(1).max(80).default("new") })).mutation(async ({ ctx, input }) => { const id = await insertDiscoverySignal({ ...input, userId: ctx.user.id }); return { id }; }),
     update: protectedProcedure.input(z.object({ id: z.number().int().positive(), data: z.object({ title: z.string().trim().min(2).max(220).optional(), type: z.string().trim().min(1).max(120).optional(), score: z.number().int().min(0).max(100).optional(), sourceCount: z.number().int().min(0).max(10000).optional(), description: z.string().max(5000).nullable().optional(), verificationDays: z.number().int().min(0).max(365).optional(), status: z.string().trim().min(1).max(80).optional() }) })).mutation(async ({ ctx, input }) => { await updateDiscoverySignal(ctx.user.id, input.id, input.data); return { updated: true as const }; }),
     delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { await deleteDiscoverySignal(ctx.user.id, input.id); return { deleted: true as const }; }),
+    getSettings: protectedProcedure.query(async ({ ctx }) => getDiscoverySettings(ctx.user.id)),
+    configureSchedule: protectedProcedure.input(z.object({ query: z.string().trim().min(3).max(240).default("mobile apps indie games developer tools"), enabled: z.boolean().default(true) })).mutation(async ({ ctx, input }) => {
+      const existing = await getDiscoverySettings(ctx.user.id);
+      const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
+      if (existing?.scheduleCronTaskUid) await deleteHeartbeatJob(existing.scheduleCronTaskUid, sessionToken);
+      let taskUid: string | null = null;
+      let nextExecutionAt: string | null = null;
+      if (input.enabled) {
+        const job = await createHeartbeatJob({ name: `discovery-refresh-${ctx.user.id}`, cron: "0 0 8 * * *", path: "/api/scheduled/discovery-refresh", description: "Fetch daily market discovery signals from Hacker News Algolia" }, sessionToken);
+        taskUid = job.taskUid;
+        nextExecutionAt = job.nextExecutionAt ?? null;
+      }
+      await upsertDiscoverySettings({ userId: ctx.user.id, source: "hn_algolia", query: input.query, enabled: input.enabled ? 1 : 0, scheduleCronTaskUid: taskUid });
+      return { enabled: input.enabled, query: input.query, taskUid, nextExecutionAt };
+    }),
+    refreshNow: protectedProcedure.mutation(async ({ ctx }) => {
+      const settings = await getDiscoverySettings(ctx.user.id);
+      const query = settings?.query ?? "mobile apps indie games developer tools";
+      return refreshDiscoveryForUser(ctx.user.id, query);
+    }),
   }),
 
   knowledge: router({

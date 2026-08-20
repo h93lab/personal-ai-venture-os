@@ -136,9 +136,25 @@ export const knowledgeItems = mysqlTable("knowledge_items", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+export const discoverySettings = mysqlTable("discovery_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  source: varchar("source", { length: 80 }).default("hn_algolia").notNull(),
+  query: varchar("query", { length: 240 }).default("mobile apps indie games developer tools").notNull(),
+  enabled: int("enabled").default(1).notNull(),
+  scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
+  lastFetchedAt: timestamp("lastFetchedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type DiscoverySetting = typeof discoverySettings.$inferSelect;
+export type InsertDiscoverySetting = typeof discoverySettings.$inferInsert;
+
 export const discoverySignals = mysqlTable("discovery_signals", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
+  sourceKey: varchar("sourceKey", { length: 180 }),
+  sourceUrl: varchar("sourceUrl", { length: 1000 }),
   title: varchar("title", { length: 220 }).notNull(),
   type: varchar("type", { length: 120 }).notNull(),
   score: int("score").default(0).notNull(),
@@ -151,6 +167,22 @@ export const discoverySignals = mysqlTable("discovery_signals", {
 });
 export type DiscoverySignal = typeof discoverySignals.$inferSelect;
 export type InsertDiscoverySignal = typeof discoverySignals.$inferInsert;
+
+export const competitors = mysqlTable("competitors", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 220 }).notNull(),
+  category: varchar("category", { length: 120 }).notNull(),
+  url: varchar("url", { length: 1000 }),
+  threatLevel: int("threatLevel").default(0).notNull(),
+  lastSeenAt: timestamp("lastSeenAt"),
+  notes: text("notes"),
+  status: varchar("status", { length: 80 }).default("watching").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Competitor = typeof competitors.$inferSelect;
+export type InsertCompetitor = typeof competitors.$inferInsert;
 
 export const ideas = mysqlTable("ideas", {
   id: int("id").autoincrement().primaryKey(),

@@ -8,11 +8,18 @@ const getGithubConnection = vi.fn();
 const upsertGithubConnection = vi.fn();
 const updateGithubSync = vi.fn();
 const deleteGithubConnection = vi.fn();
+const getDiscoverySettings = vi.fn();
+const upsertDiscoverySettings = vi.fn();
+const getDiscoverySettingsByTaskUid = vi.fn();
+const findDiscoverySignalBySourceKey = vi.fn();
+const insertDiscoverySignal = vi.fn();
+const updateDiscoveryFetch = vi.fn();
+const updateDiscoverySignal = vi.fn();
 const createHeartbeatJob = vi.fn();
 const deleteHeartbeatJob = vi.fn();
 
 vi.mock("./_core/llm", () => ({ listLLMModels, invokeLLM }));
-vi.mock("./db", () => ({ getAiProviderSettings, getGithubConnection, upsertGithubConnection, updateGithubSync, deleteGithubConnection }));
+vi.mock("./db", () => ({ getAiProviderSettings, getGithubConnection, upsertGithubConnection, updateGithubSync, deleteGithubConnection, getDiscoverySettings, upsertDiscoverySettings, getDiscoverySettingsByTaskUid, findDiscoverySignalBySourceKey, insertDiscoverySignal, updateDiscoveryFetch, updateDiscoverySignal }));
 vi.mock("./_core/heartbeat", () => ({ createHeartbeatJob, deleteHeartbeatJob }));
 vi.mock("./http-client", () => ({ externalFetch: (url: string, init?: RequestInit) => globalThis.fetch(url, init) }));
 
@@ -32,6 +39,7 @@ describe("connection tests and GitHub refresh", () => {
     vi.clearAllMocks();
     getAiProviderSettings.mockResolvedValue(undefined);
     getGithubConnection.mockResolvedValue({ userId: 11, token: "ghp_valid_token_1234", repoOwner: "owner", repoName: "repo", healthThreshold: 70, refreshMinutes: 60, scheduleCronTaskUid: null });
+    getDiscoverySettings.mockResolvedValue({ userId: 11, source: "hn_algolia", query: "mobile apps", enabled: 1, scheduleCronTaskUid: null });
   });
 
   it("tests a custom OpenAI-compatible provider without returning the API key", async () => {
@@ -48,6 +56,14 @@ describe("connection tests and GitHub refresh", () => {
     const result = await appRouter.createCaller(context()).github.configureRefresh({ refreshMinutes: 30, healthThreshold: 65 });
     expect(createHeartbeatJob).toHaveBeenCalledWith(expect.objectContaining({ cron: "0 */30 * * * *", path: "/api/scheduled/github-refresh" }), "");
     expect(result.taskUid).toBe("task-123");
+  });
+
+  it("creates a daily Discovery Heartbeat job with the source callback path", async () => {
+    createHeartbeatJob.mockResolvedValue({ taskUid: "discovery-task-1", nextExecutionAt: "2026-08-21T08:00:00Z" });
+    const result = await appRouter.createCaller(context()).discovery.configureSchedule({ query: "mobile apps", enabled: true });
+    expect(createHeartbeatJob).toHaveBeenCalledWith(expect.objectContaining({ cron: "0 0 8 * * *", path: "/api/scheduled/discovery-refresh" }), "");
+    expect(upsertDiscoverySettings).toHaveBeenCalledWith(expect.objectContaining({ userId: 11, query: "mobile apps", enabled: 1, scheduleCronTaskUid: "discovery-task-1" }));
+    expect(result.taskUid).toBe("discovery-task-1");
   });
 
   it("surfaces a warning when GitHub health is below the configured threshold", async () => {

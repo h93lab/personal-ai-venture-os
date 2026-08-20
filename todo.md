@@ -206,7 +206,7 @@
 - [x] إضافة persistence لبقية Knowledge/Discovery ذات الأولوية.
 - [x] إصلاح accessibility الأساسي للأزرار الأيقونية ورسائل الحالة.
 - [x] تحسين code splitting وحجم bundle عبر فصل DashboardCharts إلى lazy chunk وتقسيم vendor chunks.
-- [x] مراجعة الاعتماديات؛ تم تطبيق override لـ lodash وتوثيق بقاء path-to-regexp@0.1.12 بسبب Express 4.21.2، مع إبقاء ترقية Express 5 مؤجلة لتجنب كسر wildcard routes.
+- [x] مراجعة الاعتماديات؛ تم تطبيق override لـ lodash وترقية Express إلى 5.2.1 مع تحديث wildcard routes وإزالة path-to-regexp القديم من المسار التشغيلي.
 - [x] تنفيذ smoke verification للواجهة والـ OAuth boundary، وتشغيل TypeScript وVitest وproduction build؛ اختبار رحلة OAuth الكاملة يحتاج جلسة مستخدم حقيقية.
 
 ## تصحيحات ما بعد التحقق
@@ -215,3 +215,17 @@
 - [x] معالجة path-to-regexp فعليًا بترقية Express إلى 5.2.1 وتحديث wildcard routes إلى صيغة Express 5.
 - [x] إضافة اختبار browser-level فعلي عبر Chromium headless يغطي حد OAuth وغياب أخطاء React Hooks؛ CRUD مسارات Discovery وdomain مغطاة باختبارات tRPC.
 
+
+## حزمة تحسين الأداء وDiscovery وCompetitors
+
+- [x] فصل صفحات الأدوات الثقيلة إلى lazy routes مستقلة لـ Validation/Product Brief/Competitors/Settings مع loading boundaries وعدم تحميلها في الـ initial chunk.
+- [x] إضافة جدول competitors مع ملكية المستخدم وmigration غير تدميرية.
+- [x] إضافة DB helpers وprotected tRPC CRUD لوحدة Competitors وربطها بالواجهة واختبارات ownership.
+- [x] ربط Discovery بمصدر HN Algolia Search API آمن مع parsing منظم وsourceKey لمنع التكرار.
+- [x] إضافة callback Heartbeat يومي لـ Discovery عند 08:00 UTC وتخزين task UID مع أزرار التفعيل والإيقاف والجلب اليدوي.
+- [x] إضافة اختبارات Heartbeat وsource parsing وdeduplication؛ نجحت TypeScript وVitest وproduction build وbrowser smoke والفحص المرئي.
+
+## تصحيحات التحقق الأخير
+
+- [x] إضافة ErrorBoundary فعلية حول lazy pages مع fallback تحميل موحد قابل للتعامل مع فشل chunk عبر إعادة تحميل الصفحة.
+- [x] إجراء تحقق مرئي authenticated عبر deep links لـ Discovery وCompetitors وSettings؛ ظهرت الواجهات وحالات الفراغ والتحميل دون أخطاء React.

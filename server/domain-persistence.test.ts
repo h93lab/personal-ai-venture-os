@@ -13,7 +13,11 @@ const listDiscoverySignals = vi.fn();
 const insertDiscoverySignal = vi.fn();
 const updateDiscoverySignal = vi.fn();
 const deleteDiscoverySignal = vi.fn();
-vi.mock("./db", () => ({ listProjects, insertProject, updateProject, deleteProject, listIdeas, insertIdea, updateIdea, deleteIdea, listDiscoverySignals, insertDiscoverySignal, updateDiscoverySignal, deleteDiscoverySignal }));
+const listCompetitors = vi.fn();
+const insertCompetitor = vi.fn();
+const updateCompetitor = vi.fn();
+const deleteCompetitor = vi.fn();
+vi.mock("./db", () => ({ listProjects, insertProject, updateProject, deleteProject, listIdeas, insertIdea, updateIdea, deleteIdea, listDiscoverySignals, insertDiscoverySignal, updateDiscoverySignal, deleteDiscoverySignal, listCompetitors, insertCompetitor, updateCompetitor, deleteCompetitor }));
 const { appRouter } = await import("./routers");
 
 function context(): TrpcContext {
@@ -41,6 +45,19 @@ describe("persistent domain CRUD", () => {
     expect(insertDiscoverySignal).toHaveBeenCalledWith(expect.objectContaining({ userId: 55, title: "إشارة جديدة" }));
     expect(updateDiscoverySignal).toHaveBeenCalledWith(55, 14, { status: "reviewed" });
     expect(deleteDiscoverySignal).toHaveBeenCalledWith(55, 14);
+  });
+
+  it("lists, creates, updates, and deletes competitors for the authenticated owner", async () => {
+    listCompetitors.mockResolvedValue([{ id: 4, userId: 55, name: "Competitor", category: "تطبيق", threatLevel: 65 }]);
+    insertCompetitor.mockResolvedValue(18);
+    const caller = appRouter.createCaller(context());
+    expect(await caller.competitors.list()).toHaveLength(1);
+    expect(await caller.competitors.create({ name: "منافس جديد", category: "لعبة", threatLevel: 70 })).toEqual({ id: 18 });
+    await caller.competitors.update({ id: 18, data: { status: "reviewed" } });
+    await caller.competitors.delete({ id: 18 });
+    expect(insertCompetitor).toHaveBeenCalledWith(expect.objectContaining({ userId: 55, name: "منافس جديد" }));
+    expect(updateCompetitor).toHaveBeenCalledWith(55, 18, { status: "reviewed" });
+    expect(deleteCompetitor).toHaveBeenCalledWith(55, 18);
   });
 
   it("creates and updates ideas with the authenticated owner", async () => {
