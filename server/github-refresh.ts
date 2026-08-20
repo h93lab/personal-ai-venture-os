@@ -1,13 +1,14 @@
 import type { Request, Response } from "express";
 import { getGithubConnectionByTaskUid, updateGithubSync } from "./db";
 import { githubStatusForConnection } from "./routers";
-import { sdk } from "./_core/sdk";
+import { isLocalSchedulerRequest } from "./local-scheduler-auth";
 
 export async function githubRefreshHandler(req: Request, res: Response) {
   try {
-    const user = await sdk.authenticateRequest(req);
-    if (!user.isCron || !user.taskUid) return res.status(403).json({ error: "cron-only" });
-    const connection = await getGithubConnectionByTaskUid(user.taskUid);
+    if (!isLocalSchedulerRequest(req)) return res.status(403).json({ error: "cron-only" });
+    const taskUid = typeof req.body?.taskUid === "string" ? req.body.taskUid : null;
+    if (!taskUid) return res.status(400).json({ error: "taskUid-required" });
+    const connection = await getGithubConnectionByTaskUid(taskUid);
     if (!connection) return res.json({ ok: true, skipped: "orphan" });
     if (connection.lastSyncedAt && Date.now() - new Date(connection.lastSyncedAt).getTime() < connection.refreshMinutes * 60_000) {
       return res.json({ ok: true, skipped: "not-due", nextAfterMinutes: connection.refreshMinutes });

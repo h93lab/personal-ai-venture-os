@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { externalFetch } from "./http-client";
 import { findDiscoverySignalBySourceKey, getDiscoverySettingsByTaskUid, insertDiscoverySignal, updateDiscoveryFetch, updateDiscoverySignal } from "./db";
-import { sdk } from "./_core/sdk";
+import { isLocalSchedulerRequest } from "./local-scheduler-auth";
 
 type HnHit = { objectID?: string; title?: string; url?: string | null; points?: number | null; num_comments?: number | null };
 type HnResponse = { hits?: HnHit[] };
@@ -30,9 +30,10 @@ function localMinuteKey(date: Date, timeZone: string) {
 
 export async function discoveryRefreshHandler(req: Request, res: Response) {
   try {
-    const user = await sdk.authenticateRequest(req);
-    if (!user.isCron || !user.taskUid) return res.status(403).json({ error: "cron-only" });
-    const settings = await getDiscoverySettingsByTaskUid(user.taskUid);
+    if (!isLocalSchedulerRequest(req)) return res.status(403).json({ error: "cron-only" });
+    const taskUid = typeof req.body?.taskUid === "string" ? req.body.taskUid : null;
+    if (!taskUid) return res.status(400).json({ error: "taskUid-required" });
+    const settings = await getDiscoverySettingsByTaskUid(taskUid);
     if (!settings) return res.json({ ok: true, skipped: "orphan" });
     if (!settings.enabled) return res.json({ ok: true, skipped: "disabled" });
     const now = new Date();

@@ -2,6 +2,7 @@
 // Prototype-only screen: all AI, Telegram, and task results are illustrative local state; no real integrations are connected.
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import LoginPage from "@/pages/LoginPage";
 import {
   Activity,
   Archive,
@@ -268,18 +269,14 @@ function ProjectHealth() { const projects = [{ name: "Pocket Quest", type: "لع
 function SimplePage({ page }: { page: PageKey }) { const meta = pageMeta[page]; const PageIcon = page === "telegram" ? MessageCircle : page === "competitors" ? Target : Database; return <><div className="page-heading"><div><p className="eyebrow">{meta.eyebrow}</p><h1>{meta.title}</h1><p className="page-description">{meta.description}</p></div><button className="outline-button" onClick={() => toast("هذه الشاشة تجريبية في الـ Prototype") }><Command size={15} /> إجراءات سريعة</button></div><div className="empty-hero panel"><div className="empty-icon"><PageIcon size={28} /></div><h2>{page === "telegram" ? "اربط Telegram عندما تكون جاهزًا" : page === "competitors" ? "خريطة المنافسين ستتسع مع كل مسح" : "معرفتك في مكان واحد"}</h2><p>هذه شاشة تمهيدية داخل الـ Prototype لتصور المكان النهائي. ستتصل بالبيانات الحقيقية عند بدء مرحلة التنفيذ.</p><button className="primary-button" onClick={() => toast("تم تسجيل اهتمامك بهذه الوحدة") }><Sparkles size={15} /> جرّب التفاعل</button></div></> }
 
 export default function Home() {
-  // The useAuth hook provides authentication state.
-  // To implement login/logout, call logout(), or start login from an event
-  // handler: onClick={() => startLogin()} (imported from "@/const"). Never call
-  // startLogin() during render (no href={startLogin()}) — it mints a one-time
-  // nonce cookie and must run only at the moment of navigation.
-  const { user, loading, error, isAuthenticated, logout, refresh } = useAuth({ redirectOnUnauthenticated: true });
+  const { user, loading, error, isAuthenticated, logout, refresh } = useAuth();
 
   const [active, setActive] = useState<PageKey>(() => { const requested = new URLSearchParams(window.location.search).get("page") as PageKey | null; return requested && requested in pageMeta ? requested : "overview"; });
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const userName = user?.name || "مطور مستقل";
   const content = useMemo(() => { if (active === "overview") return <Overview go={setActive} />; if (active === "tasks") return <Tasks />; if (active === "discovery") return <Discovery />; if (active === "ideas") return <Ideas />; if (active === "projects") return <Projects />; if (active === "settings") return <LazyPage label="جارٍ تحميل الإعدادات..."><SettingsPage userName={userName} onProfileUpdated={() => { void refresh(); }} logout={logout} /></LazyPage>; if (active === "knowledge") return <Knowledge />; if (active === "validation") return <LazyPage label="جارٍ تحميل أداة التحقق..."><HeavyToolPages page="validation" /></LazyPage>; if (active === "briefs") return <LazyPage label="جارٍ تحميل Product Brief..."><HeavyToolPages page="briefs" /></LazyPage>; if (active === "health") return <ProjectHealth />; if (active === "competitors") return <LazyPage label="جارٍ تحميل المنافسين..."><CompetitorsPage /></LazyPage>; return <SimplePage page={active} />; }, [active, tasks, userName, logout]);
   if (loading) return <div className="app-loading" role="status" aria-live="polite"><Loader2 size={24} className="spin" /><span>جارٍ التحقق من الجلسة...</span></div>;
-  if (error || !isAuthenticated) return <div className="app-loading" role="alert"><AlertTriangle size={24} /><span>{error instanceof Error && /VITE_|OAuth configuration|HTTPS|URL is invalid/i.test(error.message) ? `إعداد OAuth غير صحيح: ${error.message}` : "تعذر التحقق من الجلسة. أعد تحميل الصفحة أو سجّل الدخول من بوابة الحساب."}</span></div>;
+  if (error) return <div className="app-loading" role="alert"><AlertTriangle size={24} /><span>تعذر التحقق من الجلسة. أعد تحميل الصفحة ثم حاول مجددًا.</span></div>;
+  if (!isAuthenticated) return <LoginPage />;
   return <AppShell active={active} setActive={setActive} userName={userName} logout={logout}>{content}<footer className="prototype-footer"><span><CircleDot size={12} /> Venture OS · بياناتك محفوظة في حسابك</span><span>Personal AI Venture OS <span className="footer-divider">·</span> v1 foundation</span></footer></AppShell>;
 }

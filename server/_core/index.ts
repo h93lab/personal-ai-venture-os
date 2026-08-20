@@ -3,7 +3,6 @@ import express from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -74,7 +73,6 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "256kb", extended: true }));
   app.use("/api/trpc", csrfProtection, apiRateLimit);
   registerStorageProxy(app);
-  registerOAuthRoutes(app);
   app.post("/api/scheduled/github-refresh", githubRefreshHandler);
   app.post("/api/scheduled/ai-task", aiTaskRefreshHandler);
   app.post("/api/scheduled/discovery-refresh", discoveryRefreshHandler);

@@ -276,3 +276,19 @@
 - [x] إضافة تحقق مبكر لعناوين OAuth والتقاط الخطأ داخل `useAuth` وعرض رسالة إعداد واضحة بدل `TypeError: Invalid URL`.
 - [x] تحديث Docker/README وقالب البيئة لتوضيح أن OAuth portal يجب أن يكون HTTPS كاملًا وإعادة build بعد تغيير VITE_* قيم.
 - [x] تشغيل typecheck و41 اختبارًا وproduction build و4-route browser smoke وحفظ checkpoint الإصلاح.
+
+## فصل Manus والمصادقة المحلية
+
+- [ ] جرد وإزالة اعتماد المصادقة ومسارات OAuth وForge وManus من التشغيل.
+- [ ] إضافة مصادقة PIN محلية مع hash قوي، جلسة cookie مستقلة، CSRF، rate limiting، وواجهة تسجيل دخول.
+- [ ] فصل إعدادات البيئة وDocker وREADME عن متغيرات Manus واستبدالها بمتغيرات مستقلة.
+- [ ] استبدال Heartbeat/التخزين/LLM المعتمد على Manus بآليات self-hosted أو موصلات اختيارية.
+- [ ] تشغيل اختبارات أمنية وتدفقات الدخول والبناء ثم حفظ checkpoint.
+
+## فصل Manus والتشغيل المستقل
+- [x] استبدال OAuth الخاص بـ Manus بمصادقة PIN محلية
+- [ ] إزالة Forge وstorage proxy ومتغيرات البيئة الخاصة بالمنصة
+- [ ] استبدال Heartbeat بعامل cron ذاتي داخل Docker
+- [ ] ربط AI بمزود OpenAI-compatible قابل للضبط
+- [ ] تحديث توثيق VPS واختبارات الأمان والتشغيل
+- [ ] تشغيل TypeScript وVitest وproduction build وbrowser smoke
