@@ -34,6 +34,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+let lastRateBucketCleanup = 0;
 function csrfProtection(req: express.Request, res: express.Response, next: express.NextFunction) {
   if (req.method !== "GET" && !isSameOriginRequest(req)) return res.status(403).json({ error: "csrf-origin" });
   return next();
@@ -41,11 +42,27 @@ function csrfProtection(req: express.Request, res: express.Response, next: expre
 
 function apiRateLimit(req: express.Request, res: express.Response, next: express.NextFunction) {
   const now = Date.now();
-  const key = req.ip || req.socket.remoteAddress || "unknown";
+  if (now - lastRateBucketCleanup > 60_000) {
+    lastRateBucketCleanup = now;
+    rateBuckets.forEach((bucket, key) => {
+      if (bucket.resetAt <= now) rateBuckets.delete(key);
+    });
+  }
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  const route = req.originalUrl.split("?")[0];
+  const expensive = /refreshNow|testConnection|configureSchedule|saveSettings/i.test(route);
+  const limit = expensive ? 30 : 120;
+  const key = `${ip}:${route}`;
   const bucket = rateBuckets.get(key);
-  if (!bucket || bucket.resetAt <= now) rateBuckets.set(key, { count: 1, resetAt: now + 60_000 });
-  else if (bucket.count >= 120) return res.status(429).json({ error: "rate-limit", retryAfterSeconds: Math.ceil((bucket.resetAt - now) / 1000) });
-  else bucket.count += 1;
+  if (!bucket || bucket.resetAt <= now) {
+    rateBuckets.set(key, { count: 1, resetAt: now + 60_000 });
+  } else if (bucket.count >= limit) {
+    const retryAfterSeconds = Math.ceil((bucket.resetAt - now) / 1000);
+    res.setHeader("Retry-After", String(retryAfterSeconds));
+    return res.status(429).json({ error: "rate-limit", retryAfterSeconds });
+  } else {
+    bucket.count += 1;
+  }
   return next();
 }
 

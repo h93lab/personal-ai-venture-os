@@ -54,14 +54,14 @@ describe("connection tests and GitHub refresh", () => {
   it("creates a Heartbeat refresh job with the selected cadence", async () => {
     createHeartbeatJob.mockResolvedValue({ taskUid: "task-123", nextExecutionAt: "2026-08-19T10:00:00Z" });
     const result = await appRouter.createCaller(context()).github.configureRefresh({ refreshMinutes: 30, healthThreshold: 65 });
-    expect(createHeartbeatJob).toHaveBeenCalledWith(expect.objectContaining({ cron: "0 */30 * * * *", path: "/api/scheduled/github-refresh" }), "");
+    expect(createHeartbeatJob).toHaveBeenCalledWith(expect.objectContaining({ cron: "0 */15 * * * *", path: "/api/scheduled/github-refresh" }), "");
     expect(result.taskUid).toBe("task-123");
   });
 
   it("creates a daily Discovery Heartbeat job with the source callback path", async () => {
     createHeartbeatJob.mockResolvedValue({ taskUid: "discovery-task-1", nextExecutionAt: "2026-08-21T08:00:00Z" });
     const result = await appRouter.createCaller(context()).discovery.configureSchedule({ query: "mobile apps", enabled: true });
-    expect(createHeartbeatJob).toHaveBeenCalledWith(expect.objectContaining({ cron: "0 0 4 * * *", path: "/api/scheduled/discovery-refresh" }), "");
+    expect(createHeartbeatJob).toHaveBeenCalledWith(expect.objectContaining({ cron: "0 * * * * *", path: "/api/scheduled/discovery-refresh", description: expect.stringContaining("08:00 Asia/Dubai") }), "");
     expect(upsertDiscoverySettings).toHaveBeenCalledWith(expect.objectContaining({ userId: 11, query: "mobile apps", enabled: 1, timezone: "Asia/Dubai", localHour: 8, localMinute: 0, scheduleCronTaskUid: "discovery-task-1" }));
     expect(result.taskUid).toBe("discovery-task-1");
   });

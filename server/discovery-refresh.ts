@@ -20,4 +20,30 @@ export async function fetchGithubDiscoverySignals(query: string, now = new Date(
 
 export async function refreshDiscoveryForUser(userId: number, query: string, source: string = "hn_algolia") { const candidates = source === "github" ? await fetchGithubDiscoverySignals(query) : await fetchHackerNewsSignals(query); let inserted = 0; let updated = 0; for (const candidate of candidates) { const existing = await findDiscoverySignalBySourceKey(userId, candidate.sourceKey); if (existing) { await updateDiscoverySignal(userId, existing.id, candidate); updated += 1; } else { await insertDiscoverySignal({ ...candidate, userId }); inserted += 1; } } await updateDiscoveryFetch(userId, new Date()); return { fetched: candidates.length, inserted, updated, source }; }
 
-export async function discoveryRefreshHandler(req: Request, res: Response) { try { const user = await sdk.authenticateRequest(req); if (!user.isCron || !user.taskUid) return res.status(403).json({ error: "cron-only" }); const settings = await getDiscoverySettingsByTaskUid(user.taskUid); if (!settings) return res.json({ ok: true, skipped: "orphan" }); if (!settings.enabled) return res.json({ ok: true, skipped: "disabled" }); const result = await refreshDiscoveryForUser(settings.userId, settings.query, settings.source); return res.json({ ok: true, ...result, fetchedAt: new Date().toISOString() }); } catch (error) { const message = error instanceof Error ? error.message : String(error); const status = /session|cron|forbidden|unauthorized/i.test(message) ? 403 : 500; return res.status(status).json({ error: status === 403 ? "forbidden" : "discovery-refresh-failed", timestamp: new Date().toISOString() }); } }
+function localDateKey(date: Date, timeZone: string) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+}
+
+function localMinuteKey(date: Date, timeZone: string) {
+  return new Intl.DateTimeFormat("en-GB", { timeZone, hour12: false, hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+export async function discoveryRefreshHandler(req: Request, res: Response) {
+  try {
+    const user = await sdk.authenticateRequest(req);
+    if (!user.isCron || !user.taskUid) return res.status(403).json({ error: "cron-only" });
+    const settings = await getDiscoverySettingsByTaskUid(user.taskUid);
+    if (!settings) return res.json({ ok: true, skipped: "orphan" });
+    if (!settings.enabled) return res.json({ ok: true, skipped: "disabled" });
+    const now = new Date();
+    const expectedMinute = `${String(settings.localHour).padStart(2, "0")}:${String(settings.localMinute).padStart(2, "0")}`;
+    if (localMinuteKey(now, settings.timezone) !== expectedMinute) return res.json({ ok: true, skipped: "not-local-time", expectedMinute, timezone: settings.timezone });
+    if (settings.lastFetchedAt && localDateKey(new Date(settings.lastFetchedAt), settings.timezone) === localDateKey(now, settings.timezone)) return res.json({ ok: true, skipped: "already-ran-today", timezone: settings.timezone });
+    const result = await refreshDiscoveryForUser(settings.userId, settings.query, settings.source);
+    return res.json({ ok: true, ...result, fetchedAt: now.toISOString() });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const status = /session|cron|forbidden|unauthorized/i.test(message) ? 403 : 500;
+    return res.status(status).json({ error: status === 403 ? "forbidden" : "discovery-refresh-failed", timestamp: new Date().toISOString() });
+  }
+}

@@ -141,3 +141,29 @@ button { transition: transform .16s cubic-bezier(.23,1,.32,1), background-color 
 .template-previews span { display:block; color:var(--muted-foreground); font-size:10px; font-weight:700; margin-bottom:6px; }
 .template-previews p { white-space:pre-wrap; margin:0; font-size:11px; line-height:1.8; color:var(--foreground); }
 @media (max-width:560px) { .template-previews { grid-template-columns:1fr; } }
+
+/* Operational responsive hardening for source and integration settings. */
+.settings-inline-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:0 0 14px; }
+.settings-inline-grid > label, .github-repo-fields > label, .github-controls > label { min-width:0; display:grid; gap:6px; color:var(--foreground); font-size:11px; font-weight:700; }
+.settings-inline-grid input, .settings-inline-grid select, .github-repo-fields input, .github-repo-fields select, .github-controls select { width:100%; min-width:0; max-width:100%; border:1px solid var(--input); background:var(--background); color:var(--foreground); border-radius:var(--radius); padding:10px 11px; font:inherit; font-size:11px; }
+.settings-inline-grid input, .github-repo-fields input { direction:rtl; text-overflow:ellipsis; }
+.github-repo-fields, .github-controls { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:0 0 12px; }
+.api-actions { flex-wrap:wrap; min-width:0; }
+.api-actions > * { min-width:0; }
+.api-state { overflow-wrap:anywhere; line-height:1.6; }
+.loading-panel { min-height:180px !important; }
+@media (max-width:760px) {
+  .settings-inline-grid, .github-repo-fields, .github-controls { grid-template-columns:1fr; gap:10px; }
+  .settings-inline-grid > label, .github-repo-fields > label, .github-controls > label { width:100%; }
+  .api-actions { align-items:stretch; flex-direction:column; }
+  .api-actions > button, .api-actions > .api-state { width:100%; min-height:34px; }
+  .api-actions > .api-state { display:block; text-align:center; }
+  .discovery-settings-card { padding:16px; }
+  .empty-state { min-height:210px; padding:24px 10px; }
+  .page-content { padding:28px 16px 22px; }
+}
+@media (max-width:420px) {
+  .settings-inline-grid input, .settings-inline-grid select, .github-repo-fields input, .github-controls select { font-size:10px; padding-inline:9px; }
+  .panel-head { gap:8px; }
+  .panel-head h2 { font-size:18px; }
+}

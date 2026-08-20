@@ -237,3 +237,20 @@
 - [x] إضافة واجهة إعدادات واضحة لاختيار المصدر والوقت والمنطقة الزمنية وحالة الجدولة.
 - [x] إضافة تحديث دوري آمن لبيانات Competitors من GitHub مع deduplication وHeartbeat مستقل وgating للفترة المختارة.
 - [x] إضافة اختبارات للمصادر والـ timezone والجدولة وتحديث Competitors؛ نجحت TypeScript و41 اختبارًا وproduction build وbrowser smoke والتحقق المرئي.
+
+## مراجعة الجاهزية الشاملة
+
+- [x] تنفيذ تدقيق تقني مستقل للبنية، schema/migrations، tRPC، Heartbeat، الاعتماديات، الأداء، والاختبارات.
+- [x] تنفيذ تدقيق أمني مستقل للمصادقة، OAuth، الأسرار، SSRF، CSRF، rate limiting، الملكية، callbacks، والتكاملات الخارجية.
+- [x] تنفيذ مراجعة UI/UX مستقلة تشمل RTL/Cairo، responsive، accessibility، حالات التحميل والخطأ، التنقل، والتناسق البصري.
+- [x] تشغيل بوابة تحقق نهائية تشمل typecheck وVitest وbuild وbrowser smoke وdependency audit وفحص السجلات؛ dependency audit بقي غير نظيف ويحتاج إصلاحًا.
+- [x] إعداد تقرير جاهزية شامل بتصنيف المخاطر والأدلة وخطة الإصلاح قبل الاستخدام الفعلي.
+
+## خطة الإصلاح الشاملة للتشغيل
+
+- [x] تحديث/استبدال مسار Streamdown وMermaid وDOMPurify المتأثر؛ `pnpm audit --prod` أصبح نظيفًا بلا ثغرات معروفة.
+- [x] تصحيح جدولة GitHub إلى cadence ثابت مع gating حسب refreshMinutes، وتصحيح Discovery إلى callback محلي مقاوم لـ DST وTimezone.
+- [x] تقوية rate limiting بمفاتيح route-aware وحدود للمسارات المكلفة وتنظيف buckets وRetry-After؛ ما زال التخزين داخل process مناسبًا لـ Autoscale المحدود فقط.
+- [x] تحسين mobile settings layout وloading states لمسارات Discovery وCompetitors مع اختبار viewport 390px.
+- [x] توسيع browser smoke إلى أربعة deep links، وتغطية CRUD/الجدولة/callbacks باختبارات tRPC؛ فحص schema والمigrations ضمن التدقيق.
+- [x] تشغيل بوابة تحقق نهائية كاملة ومعالجة الفشل الفعلي: TypeScript و41 اختبارًا وproduction build و4-route browser smoke وdependency audit وفحص السجلات.

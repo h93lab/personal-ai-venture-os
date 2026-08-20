@@ -9,6 +9,9 @@ export async function githubRefreshHandler(req: Request, res: Response) {
     if (!user.isCron || !user.taskUid) return res.status(403).json({ error: "cron-only" });
     const connection = await getGithubConnectionByTaskUid(user.taskUid);
     if (!connection) return res.json({ ok: true, skipped: "orphan" });
+    if (connection.lastSyncedAt && Date.now() - new Date(connection.lastSyncedAt).getTime() < connection.refreshMinutes * 60_000) {
+      return res.json({ ok: true, skipped: "not-due", nextAfterMinutes: connection.refreshMinutes });
+    }
     const status = await githubStatusForConnection(connection);
     await updateGithubSync(connection.userId, status);
     return res.json({ ok: true, repo: status.repo, health: status.health, warning: status.health < connection.healthThreshold });
