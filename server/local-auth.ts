@@ -12,7 +12,7 @@ const PIN_MAX_ATTEMPTS = 5;
 const PIN_LOCK_MS = 15 * 60 * 1000;
 const attempts = new Map<string, { count: number; lockedUntil: number }>();
 
-type LocalSession = { openId: string; role: "admin" | "user"; name: string };
+type LocalSession = { openId: string; role: "admin" | "user"; name: string; authVersion: number };
 
 function getPin(): string {
   const pin = process.env.LOCAL_AUTH_PIN?.trim() ?? "";
@@ -20,12 +20,12 @@ function getPin(): string {
   return pin;
 }
 
-function hashPin(pin: string, salt = crypto.randomBytes(16).toString("hex")) {
+export function hashPin(pin: string, salt = crypto.randomBytes(16).toString("hex")) {
   const digest = crypto.scryptSync(pin, salt, 32).toString("hex");
   return `${salt}:${digest}`;
 }
 
-function verifyHash(pin: string, stored: string) {
+export function verifyHash(pin: string, stored: string) {
   const [salt, digest] = stored.split(":");
   if (!salt || !digest || !/^[a-f0-9]{64}$/i.test(digest)) return false;
   const candidate = crypto.scryptSync(pin, salt, 32);
@@ -77,6 +77,7 @@ async function signSession(user: User) {
   if (!secret) throw new Error("JWT_SECRET is required for local authentication");
   return new SignJWT({ openId: user.openId, role: user.role, name: user.name ?? "Venture OS Admin" })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setJti(String(user.authVersion ?? 0))
     .setIssuedAt()
     .setExpirationTime(Math.floor((Date.now() + ONE_YEAR_MS) / 1000))
     .sign(new TextEncoder().encode(secret));
@@ -84,11 +85,15 @@ async function signSession(user: User) {
 
 export async function loginWithPin(req: Request, res: Response, pin: string) {
   if (!canAttempt(req)) return { ok: false as const, locked: true as const };
-  if (!verifyHash(pin, storedPinHash())) {
+  let user = await ensureLocalUser();
+  const configuredHash = user.pinHash ?? storedPinHash();
+  if (!verifyHash(pin, configuredHash)) {
     recordFailure(req);
     return { ok: false as const, locked: false as const };
   }
-  const user = await ensureLocalUser();
+  if (!user.pinHash) {
+    user = (await db.updateLocalPin(user.id, hashPin(getPin(), "venture-os-local-pin"))) ?? user;
+  }
   clearFailures(req);
   const token = await signSession(user);
   res.cookie(COOKIE_NAME, token, { ...getSessionCookieOptions(req), maxAge: ONE_YEAR_MS });
@@ -101,7 +106,9 @@ export async function authenticateLocalRequest(req: Request): Promise<User | nul
   try {
     const { payload } = await jwtVerify(token, new TextEncoder().encode(ENV.cookieSecret), { algorithms: ["HS256"] });
     if (payload.openId !== LOCAL_OPEN_ID) return null;
-    return (await db.getUserByOpenId(LOCAL_OPEN_ID)) ?? null;
+    const user = (await db.getUserByOpenId(LOCAL_OPEN_ID)) ?? null;
+    if (!user || String(payload.jti ?? "0") !== String(user.authVersion ?? 0)) return null;
+    return user;
   } catch {
     return null;
   }
@@ -109,4 +116,17 @@ export async function authenticateLocalRequest(req: Request): Promise<User | nul
 
 export function logoutLocal(req: Request, res: Response) {
   res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(req), maxAge: -1 });
+}
+
+export async function changeLocalPin(req: Request, res: Response, user: User, currentPin: string, newPin: string) {
+  if (!canAttempt(req)) return { ok: false as const, locked: true as const };
+  const currentHash = user.pinHash ?? storedPinHash();
+  if (!verifyHash(currentPin, currentHash)) {
+    recordFailure(req);
+    return { ok: false as const, locked: false as const };
+  }
+  const updated = await db.updateLocalPin(user.id, hashPin(newPin));
+  clearFailures(req);
+  logoutLocal(req, res);
+  return { ok: true as const, user: updated };
 }

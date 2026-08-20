@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME } from "@shared/const";
 import { parse as parseCookie } from "cookie";
 import { getSessionCookieOptions } from "./_core/cookies";
-import { loginWithPin, logoutLocal } from "./local-auth";
+import { changeLocalPin, loginWithPin, logoutLocal } from "./local-auth";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { invokeLLM, listLLMModels } from "./_core/llm";
@@ -103,6 +104,14 @@ export const appRouter = router({
     logout: publicProcedure.mutation(({ ctx }) => {
       logoutLocal(ctx.req, ctx.res);
       return { success: true } as const;
+    }),
+    changePin: protectedProcedure.input(z.object({ currentPin: z.string().regex(/^\d{4,12}$/), newPin: z.string().regex(/^\d{4,12}$/), confirmPin: z.string().regex(/^\d{4,12}$/) })).mutation(async ({ ctx, input }) => {
+      if (input.newPin !== input.confirmPin) throw new TRPCError({ code: "BAD_REQUEST", message: "PIN الجديد وتأكيده غير متطابقين" });
+      if (input.currentPin === input.newPin) throw new TRPCError({ code: "BAD_REQUEST", message: "PIN الجديد يجب أن يختلف عن الحالي" });
+      const result = await changeLocalPin(ctx.req, ctx.res, ctx.user, input.currentPin, input.newPin);
+      if (result.locked) throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "تم إيقاف محاولات تغيير PIN مؤقتًا" });
+      if (!result.ok) throw new TRPCError({ code: "UNAUTHORIZED", message: "PIN الحالي غير صحيح" });
+      return { success: true as const, loggedOut: true as const };
     }),
   }),
 

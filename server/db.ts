@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, isNull, lt, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import { sql } from "drizzle-orm";
 import { InsertUser, users, githubConnections, aiProviderSettings, aiTasks, aiTaskRuns, telegramConnections, InsertAiTask, projects, ideas, knowledgeItems, discoverySignals, discoverySettings, competitors, competitorSettings } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { buildAiTaskStats } from "../shared/ai-task-stats";
@@ -95,6 +96,14 @@ export async function updateUserProfile(userId: number, input: { name?: string |
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
   await db.update(users).set({ ...input, updatedAt: new Date() }).where(eq(users.id, userId));
+  const rows = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return rows[0];
+}
+
+export async function updateLocalPin(userId: number, pinHash: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(users).set({ pinHash, authVersion: sql`${users.authVersion} + 1`, updatedAt: new Date() }).where(eq(users.id, userId));
   const rows = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   return rows[0];
 }

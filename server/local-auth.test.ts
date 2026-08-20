@@ -3,16 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./db", () => ({
   getUserByOpenId: vi.fn(async () => ({ id: 1, openId: "local-admin", name: "Venture OS Admin", email: null, loginMethod: "local-pin", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() })),
   upsertUser: vi.fn(async () => undefined),
+  updateLocalPin: vi.fn(async (_id: number, pinHash: string) => ({ id: 1, openId: "local-admin", name: "Venture OS Admin", email: null, loginMethod: "local-pin", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(), pinHash, authVersion: 1 })),
 }));
 
-import { loginWithPin } from "./local-auth";
+import { changeLocalPin, hashPin, loginWithPin } from "./local-auth";
 
 function mockRequest() {
   return { ip: "127.0.0.1", socket: { remoteAddress: "127.0.0.1" }, cookies: {}, headers: {}, protocol: "http" } as never;
 }
 
 function mockResponse() {
-  return { cookie: vi.fn() } as never;
+  return { cookie: vi.fn(), clearCookie: vi.fn() } as never;
 }
 
 describe("local PIN authentication", () => {
@@ -30,5 +31,13 @@ describe("local PIN authentication", () => {
   it("rejects an incorrect PIN", async () => {
     const response = await loginWithPin(mockRequest(), mockResponse(), "9999");
     expect(response.ok).toBe(false);
+  });
+
+  it("changes the PIN and clears the current session", async () => {
+    const response = mockResponse();
+    const user = { id: 1, openId: "local-admin", name: "Venture OS Admin", email: null, loginMethod: "local-pin", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(), pinHash: hashPin("0566", "test-salt"), authVersion: 0 } as any;
+    const result = await changeLocalPin(mockRequest(), response, user, "0566", "1234");
+    expect(result.ok).toBe(true);
+    expect(response.clearCookie).toHaveBeenCalled();
   });
 });

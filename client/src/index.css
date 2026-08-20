@@ -183,3 +183,7 @@ button { transition: transform .16s cubic-bezier(.23,1,.32,1), background-color 
 .login-error { margin:0; padding:10px 12px; border:1px solid var(--destructive); border-radius:9px; color:var(--destructive); font-size:11px; line-height:1.6; }
 .login-footnote { margin:18px 0 0; font-size:10px; }
 @media (max-width: 520px) { .login-card { padding:24px; } }
+
+.pin-fields { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }
+.form-error { margin:10px 0; color:var(--destructive); font-size:10px; }
+@media (max-width: 760px) { .pin-fields { grid-template-columns:1fr; } }
