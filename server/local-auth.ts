@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { Request, Response } from "express";
+import { parse as parseCookie } from "cookie";
 import { SignJWT, jwtVerify } from "jose";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import type { User } from "../drizzle/schema";
@@ -101,7 +102,7 @@ export async function loginWithPin(req: Request, res: Response, pin: string) {
 }
 
 export async function authenticateLocalRequest(req: Request): Promise<User | null> {
-  const token = req.cookies?.[COOKIE_NAME] as string | undefined;
+  const token = (req.cookies?.[COOKIE_NAME] as string | undefined) ?? (req.headers.cookie ? parseCookie(req.headers.cookie)[COOKIE_NAME] : undefined);
   if (!token || !ENV.cookieSecret) return null;
   try {
     const { payload } = await jwtVerify(token, new TextEncoder().encode(ENV.cookieSecret), { algorithms: ["HS256"] });

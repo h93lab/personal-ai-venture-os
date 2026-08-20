@@ -303,3 +303,8 @@
 - [x] فحص Dockerfile وpackageManager وpnpm-lock.yaml لتحديد سبب فشل frozen-lockfile.
 - [x] إصلاح تثبيت pnpm داخل Docker بطريقة reproducible دون تعطيل تحقق lockfile.
 - [x] اختبار Docker build وتحديث التوثيق ثم رفع الإصلاح إلى GitHub.
+
+## إصلاح جلسة تسجيل الدخول PIN
+- [x] تشخيص سبب رجوع الواجهة إلى صفحة PIN بعد login الناجح.
+- [x] إصلاح cookie أو auth.me أو حالة المصادقة في الواجهة.
+- [x] إضافة اختبار لتدفق login ثم auth.me وإعادة التحقق بعد reload، ثم حفظ ورفع الإصلاح.

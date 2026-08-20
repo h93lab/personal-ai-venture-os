@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SignJWT } from "jose";
+import { COOKIE_NAME } from "@shared/const";
 
 vi.mock("./db", () => ({
   getUserByOpenId: vi.fn(async () => ({ id: 1, openId: "local-admin", name: "Venture OS Admin", email: null, loginMethod: "local-pin", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() })),
@@ -6,10 +8,11 @@ vi.mock("./db", () => ({
   updateLocalPin: vi.fn(async (_id: number, pinHash: string) => ({ id: 1, openId: "local-admin", name: "Venture OS Admin", email: null, loginMethod: "local-pin", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date(), pinHash, authVersion: 1 })),
 }));
 
-import { changeLocalPin, hashPin, loginWithPin } from "./local-auth";
+import { authenticateLocalRequest, changeLocalPin, hashPin, loginWithPin } from "./local-auth";
+import { ENV } from "./_core/env";
 
-function mockRequest() {
-  return { ip: "127.0.0.1", socket: { remoteAddress: "127.0.0.1" }, cookies: {}, headers: {}, protocol: "http" } as never;
+function mockRequest(headers: Record<string, string> = {}) {
+  return { ip: "127.0.0.1", socket: { remoteAddress: "127.0.0.1" }, cookies: {}, headers, protocol: "http" } as never;
 }
 
 function mockResponse() {
@@ -21,6 +24,7 @@ describe("local PIN authentication", () => {
     process.env.LOCAL_AUTH_PIN = "0566";
     delete process.env.LOCAL_AUTH_PIN_HASH;
     process.env.JWT_SECRET = "test-jwt-secret";
+    ENV.cookieSecret = process.env.JWT_SECRET;
   });
 
   it("accepts the configured PIN through the login API handler", async () => {
@@ -31,6 +35,12 @@ describe("local PIN authentication", () => {
   it("rejects an incorrect PIN", async () => {
     const response = await loginWithPin(mockRequest(), mockResponse(), "9999");
     expect(response.ok).toBe(false);
+  });
+
+  it("authenticates a session cookie sent through the request header", async () => {
+    const token = await new SignJWT({ openId: "local-admin", role: "admin", name: "Venture OS Admin" }).setProtectedHeader({ alg: "HS256" }).setJti("0").setIssuedAt().setExpirationTime("1h").sign(new TextEncoder().encode(process.env.JWT_SECRET ?? "test-jwt-secret"));
+    const user = await authenticateLocalRequest(mockRequest({ cookie: `${COOKIE_NAME}=${token}` }));
+    expect(user?.openId).toBe("local-admin");
   });
 
   it("changes the PIN and clears the current session", async () => {
