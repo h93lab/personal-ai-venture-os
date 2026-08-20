@@ -254,3 +254,12 @@
 - [x] تحسين mobile settings layout وloading states لمسارات Discovery وCompetitors مع اختبار viewport 390px.
 - [x] توسيع browser smoke إلى أربعة deep links، وتغطية CRUD/الجدولة/callbacks باختبارات tRPC؛ فحص schema والمigrations ضمن التدقيق.
 - [x] تشغيل بوابة تحقق نهائية كاملة ومعالجة الفشل الفعلي: TypeScript و41 اختبارًا وproduction build و4-route browser smoke وdependency audit وفحص السجلات.
+
+## نسخة التصدير النظيفة لـ Docker/VPS
+
+- [x] حصر جداول بيانات الاستخدام وحذف الصفوف فقط مع الحفاظ على schema والمigrations والجداول.
+- [x] التحقق من خلو جداول الاستخدام وعدم حذف بيانات النظام أو بنية قاعدة البيانات؛ COUNT(*) يساوي صفرًا لكل الجداول التطبيقية بعد حذف users الأخير.
+- [x] إضافة Dockerfile إنتاجي وملفات .dockerignore وdocker-compose.yml وملف تشغيل VPS.
+- [x] إنشاء `deployment.env.example` شامل بكل متغيرات التشغيل placeholder-only؛ README يشرح نسخه إلى `.env` قبل التشغيل.
+- [x] كتابة README عملي يشرح Docker وVPS وتهيئة قاعدة البيانات وOAuth والأسرار والنسخ الاحتياطي.
+- [x] تشغيل التحقق النهائي: TypeScript و41 اختبارًا وproduction build وdependency audit نظيف؛ وحفظ checkpoint نسخة التصدير النظيفة.
