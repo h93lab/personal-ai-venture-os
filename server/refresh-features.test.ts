@@ -61,8 +61,8 @@ describe("connection tests and GitHub refresh", () => {
   it("creates a daily Discovery Heartbeat job with the source callback path", async () => {
     createHeartbeatJob.mockResolvedValue({ taskUid: "discovery-task-1", nextExecutionAt: "2026-08-21T08:00:00Z" });
     const result = await appRouter.createCaller(context()).discovery.configureSchedule({ query: "mobile apps", enabled: true });
-    expect(createHeartbeatJob).toHaveBeenCalledWith(expect.objectContaining({ cron: "0 0 8 * * *", path: "/api/scheduled/discovery-refresh" }), "");
-    expect(upsertDiscoverySettings).toHaveBeenCalledWith(expect.objectContaining({ userId: 11, query: "mobile apps", enabled: 1, scheduleCronTaskUid: "discovery-task-1" }));
+    expect(createHeartbeatJob).toHaveBeenCalledWith(expect.objectContaining({ cron: "0 0 4 * * *", path: "/api/scheduled/discovery-refresh" }), "");
+    expect(upsertDiscoverySettings).toHaveBeenCalledWith(expect.objectContaining({ userId: 11, query: "mobile apps", enabled: 1, timezone: "Asia/Dubai", localHour: 8, localMinute: 0, scheduleCronTaskUid: "discovery-task-1" }));
     expect(result.taskUid).toBe("discovery-task-1");
   });
 

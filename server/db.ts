@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, isNull, lt, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, githubConnections, aiProviderSettings, aiTasks, aiTaskRuns, telegramConnections, InsertAiTask, projects, ideas, knowledgeItems, discoverySignals, discoverySettings, competitors } from "../drizzle/schema";
+import { InsertUser, users, githubConnections, aiProviderSettings, aiTasks, aiTaskRuns, telegramConnections, InsertAiTask, projects, ideas, knowledgeItems, discoverySignals, discoverySettings, competitors, competitorSettings } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { buildAiTaskStats } from "../shared/ai-task-stats";
 import { decryptSecret, encryptSecret, maskSecret } from "./secrets";
@@ -293,20 +293,53 @@ export async function deleteIdea(userId: number, id: number) {
   await db.delete(ideas).where(and(eq(ideas.userId, userId), eq(ideas.id, id)));
 }
 
+export async function getCompetitorSettings(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(competitorSettings).where(eq(competitorSettings.userId, userId)).limit(1);
+  return rows[0];
+}
+
+export async function getCompetitorSettingsByTaskUid(taskUid: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(competitorSettings).where(eq(competitorSettings.scheduleCronTaskUid, taskUid)).limit(1);
+  return rows[0];
+}
+
+export async function upsertCompetitorSettings(input: { userId: number; source?: string; query?: string; enabled?: number; refreshMinutes?: number; scheduleCronTaskUid?: string | null; lastFetchedAt?: Date | null }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.insert(competitorSettings).values({ ...input, source: input.source ?? "github", query: input.query ?? "mobile apps indie games developer tools", enabled: input.enabled ?? 1, refreshMinutes: input.refreshMinutes ?? 1440 }).onDuplicateKeyUpdate({ set: { source: input.source ?? "github", query: input.query ?? "mobile apps indie games developer tools", enabled: input.enabled ?? 1, refreshMinutes: input.refreshMinutes ?? 1440, scheduleCronTaskUid: input.scheduleCronTaskUid ?? null, lastFetchedAt: input.lastFetchedAt ?? null, updatedAt: new Date() } });
+}
+
+export async function updateCompetitorFetch(userId: number, fetchedAt: Date) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not available");
+  await db.update(competitorSettings).set({ lastFetchedAt: fetchedAt, updatedAt: new Date() }).where(eq(competitorSettings.userId, userId));
+}
+
+export async function findCompetitorBySourceKey(userId: number, sourceKey: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const rows = await db.select().from(competitors).where(and(eq(competitors.userId, userId), eq(competitors.sourceKey, sourceKey))).limit(1);
+  return rows[0];
+}
+
 export async function listCompetitors(userId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(competitors).where(eq(competitors.userId, userId)).orderBy(desc(competitors.updatedAt));
 }
 
-export async function insertCompetitor(input: { userId: number; name: string; category: string; url?: string | null; threatLevel?: number; lastSeenAt?: Date | null; notes?: string | null; status?: string }) {
+export async function insertCompetitor(input: { userId: number; sourceKey?: string | null; source?: string; name: string; category: string; url?: string | null; threatLevel?: number; lastSeenAt?: Date | null; notes?: string | null; status?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
   const result = await db.insert(competitors).values(input);
   return Number(result[0].insertId);
 }
 
-export async function updateCompetitor(userId: number, id: number, patch: Partial<{ name: string; category: string; url: string | null; threatLevel: number; lastSeenAt: Date | null; notes: string | null; status: string }>) {
+export async function updateCompetitor(userId: number, id: number, patch: Partial<{ sourceKey: string | null; source: string; name: string; category: string; url: string | null; threatLevel: number; lastSeenAt: Date | null; notes: string | null; status: string }>) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
   await db.update(competitors).set({ ...patch, updatedAt: new Date() }).where(and(eq(competitors.userId, userId), eq(competitors.id, id)));
@@ -332,10 +365,16 @@ export async function getDiscoverySettingsByTaskUid(taskUid: string) {
   return rows[0];
 }
 
-export async function upsertDiscoverySettings(input: { userId: number; source?: string; query?: string; enabled?: number; scheduleCronTaskUid?: string | null; lastFetchedAt?: Date | null }) {
+export async function upsertDiscoverySettings(input: { userId: number; source?: string; query?: string; localHour?: number; localMinute?: number; timezone?: string; enabled?: number; scheduleCronTaskUid?: string | null; lastFetchedAt?: Date | null }) {
   const db = await getDb();
   if (!db) throw new Error("Database is not available");
-  await db.insert(discoverySettings).values({ ...input, source: input.source ?? "hn_algolia", query: input.query ?? "mobile apps indie games developer tools", enabled: input.enabled ?? 1 }).onDuplicateKeyUpdate({ set: { source: input.source ?? "hn_algolia", query: input.query ?? "mobile apps indie games developer tools", enabled: input.enabled ?? 1, scheduleCronTaskUid: input.scheduleCronTaskUid ?? null, lastFetchedAt: input.lastFetchedAt ?? null, updatedAt: new Date() } });
+  const source = input.source ?? "hn_algolia";
+  const query = input.query ?? "mobile apps indie games developer tools";
+  const localHour = input.localHour ?? 8;
+  const localMinute = input.localMinute ?? 0;
+  const timezone = input.timezone ?? "Asia/Dubai";
+  const enabled = input.enabled ?? 1;
+  await db.insert(discoverySettings).values({ ...input, source, query, localHour, localMinute, timezone, enabled }).onDuplicateKeyUpdate({ set: { source, query, localHour, localMinute, timezone, enabled, scheduleCronTaskUid: input.scheduleCronTaskUid ?? null, lastFetchedAt: input.lastFetchedAt ?? null, updatedAt: new Date() } });
 }
 
 export async function updateDiscoveryFetch(userId: number, fetchedAt: Date) {

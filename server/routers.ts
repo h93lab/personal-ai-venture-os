@@ -5,13 +5,15 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { invokeLLM, listLLMModels } from "./_core/llm";
-import { deleteGithubConnection, getGithubConnection, updateGithubSchedule, updateGithubSync, upsertGithubConnection, getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings, listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns, updateUserProfile, listProjects, insertProject, updateProject, deleteProject, listIdeas, insertIdea, updateIdea, deleteIdea, listKnowledgeItems, insertKnowledgeItem, updateKnowledgeItem, deleteKnowledgeItem, listDiscoverySignals, insertDiscoverySignal, updateDiscoverySignal, deleteDiscoverySignal, listCompetitors, insertCompetitor, updateCompetitor, deleteCompetitor, getDiscoverySettings, upsertDiscoverySettings } from "./db";
-import { createHeartbeatJob, deleteHeartbeatJob } from "./_core/heartbeat";
+import { deleteGithubConnection, getGithubConnection, updateGithubSchedule, updateGithubSync, upsertGithubConnection, getAiProviderSettings, upsertAiProviderSettings, deleteAiProviderSettings, listAiTasks, getAiTask, insertAiTask, updateAiTask, deleteAiTask, listAiTaskRuns, updateUserProfile, listProjects, insertProject, updateProject, deleteProject, listIdeas, insertIdea, updateIdea, deleteIdea, listKnowledgeItems, insertKnowledgeItem, updateKnowledgeItem, deleteKnowledgeItem, listDiscoverySignals, insertDiscoverySignal, updateDiscoverySignal, deleteDiscoverySignal, listCompetitors, insertCompetitor, updateCompetitor, deleteCompetitor, getCompetitorSettings, getCompetitorSettingsByTaskUid, upsertCompetitorSettings, updateCompetitorFetch, findCompetitorBySourceKey, getDiscoverySettings, upsertDiscoverySettings } from "./db";
+import { createHeartbeatJob, deleteHeartbeatJob, updateHeartbeatJob } from "./_core/heartbeat";
 import { executeAiTask } from "./ai-tasks";
 import { getTelegramConnection, upsertTelegramConnection, deleteTelegramConnection, getAiTaskRunStats } from "./db";
 import { testTelegramConnection } from "./telegram";
 import { externalFetch } from "./http-client";
 import { fetchHackerNewsSignals, refreshDiscoveryForUser } from "./discovery-refresh";
+import { assertValidTimeZone, localTimeToUtcCron } from "./schedule-utils";
+import { refreshCompetitorsForUser } from "./competitor-refresh";
 
 export function maskGithubToken(token: string | undefined) {
   if (!token) return null;
@@ -126,9 +128,12 @@ export const appRouter = router({
 
   competitors: router({
     list: protectedProcedure.query(({ ctx }) => listCompetitors(ctx.user.id)),
-    create: protectedProcedure.input(z.object({ name: z.string().trim().min(2).max(220), category: z.string().trim().min(1).max(120), url: z.string().url().max(1000).optional(), threatLevel: z.number().int().min(0).max(100).default(0), notes: z.string().max(5000).optional(), status: z.string().trim().min(1).max(80).default("watching") })).mutation(async ({ ctx, input }) => { const id = await insertCompetitor({ ...input, userId: ctx.user.id }); return { id }; }),
+    create: protectedProcedure.input(z.object({ name: z.string().trim().min(2).max(220), category: z.string().trim().min(1).max(120), url: z.string().url().max(1000).optional(), threatLevel: z.number().int().min(0).max(100).default(0), notes: z.string().max(5000).optional(), status: z.string().trim().min(1).max(80).default("watching") })).mutation(async ({ ctx, input }) => { const id = await insertCompetitor({ ...input, userId: ctx.user.id, source: "manual" }); return { id }; }),
     update: protectedProcedure.input(z.object({ id: z.number().int().positive(), data: z.object({ name: z.string().trim().min(2).max(220).optional(), category: z.string().trim().min(1).max(120).optional(), url: z.string().url().max(1000).nullable().optional(), threatLevel: z.number().int().min(0).max(100).optional(), notes: z.string().max(5000).nullable().optional(), status: z.string().trim().min(1).max(80).optional() }) })).mutation(async ({ ctx, input }) => { await updateCompetitor(ctx.user.id, input.id, input.data); return { updated: true as const }; }),
     delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { await deleteCompetitor(ctx.user.id, input.id); return { deleted: true as const }; }),
+    getSettings: protectedProcedure.query(({ ctx }) => getCompetitorSettings(ctx.user.id)),
+    configureSchedule: protectedProcedure.input(z.object({ query: z.string().trim().min(3).max(240).default("mobile apps indie games developer tools"), enabled: z.boolean().default(true), refreshMinutes: z.number().int().min(60).max(10080).default(1440) })).mutation(async ({ ctx, input }) => { const existing = await getCompetitorSettings(ctx.user.id); const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? ""; if (existing?.scheduleCronTaskUid) await deleteHeartbeatJob(existing.scheduleCronTaskUid, sessionToken); let taskUid: string | null = null; let nextExecutionAt: string | null = null; if (input.enabled) { const job = await createHeartbeatJob({ name: `competitors-refresh-${ctx.user.id}`, cron: "0 0 6 * * *", path: "/api/scheduled/competitors-refresh", description: "Refresh competitor intelligence from GitHub" }, sessionToken); taskUid = job.taskUid; nextExecutionAt = job.nextExecutionAt ?? null; } await upsertCompetitorSettings({ userId: ctx.user.id, source: "github", query: input.query, enabled: input.enabled ? 1 : 0, refreshMinutes: input.refreshMinutes, scheduleCronTaskUid: taskUid }); return { enabled: input.enabled, query: input.query, refreshMinutes: input.refreshMinutes, taskUid, nextExecutionAt }; }),
+    refreshNow: protectedProcedure.mutation(async ({ ctx }) => { const settings = await getCompetitorSettings(ctx.user.id); return refreshCompetitorsForUser(ctx.user.id, settings?.query ?? "mobile apps indie games developer tools"); }),
   }),
 
   discovery: router({
@@ -136,26 +141,9 @@ export const appRouter = router({
     create: protectedProcedure.input(z.object({ title: z.string().trim().min(2).max(220), type: z.string().trim().min(1).max(120), score: z.number().int().min(0).max(100).default(0), sourceCount: z.number().int().min(0).max(10000).default(0), description: z.string().max(5000).optional(), verificationDays: z.number().int().min(0).max(365).default(2), status: z.string().trim().min(1).max(80).default("new") })).mutation(async ({ ctx, input }) => { const id = await insertDiscoverySignal({ ...input, userId: ctx.user.id }); return { id }; }),
     update: protectedProcedure.input(z.object({ id: z.number().int().positive(), data: z.object({ title: z.string().trim().min(2).max(220).optional(), type: z.string().trim().min(1).max(120).optional(), score: z.number().int().min(0).max(100).optional(), sourceCount: z.number().int().min(0).max(10000).optional(), description: z.string().max(5000).nullable().optional(), verificationDays: z.number().int().min(0).max(365).optional(), status: z.string().trim().min(1).max(80).optional() }) })).mutation(async ({ ctx, input }) => { await updateDiscoverySignal(ctx.user.id, input.id, input.data); return { updated: true as const }; }),
     delete: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => { await deleteDiscoverySignal(ctx.user.id, input.id); return { deleted: true as const }; }),
-    getSettings: protectedProcedure.query(async ({ ctx }) => getDiscoverySettings(ctx.user.id)),
-    configureSchedule: protectedProcedure.input(z.object({ query: z.string().trim().min(3).max(240).default("mobile apps indie games developer tools"), enabled: z.boolean().default(true) })).mutation(async ({ ctx, input }) => {
-      const existing = await getDiscoverySettings(ctx.user.id);
-      const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
-      if (existing?.scheduleCronTaskUid) await deleteHeartbeatJob(existing.scheduleCronTaskUid, sessionToken);
-      let taskUid: string | null = null;
-      let nextExecutionAt: string | null = null;
-      if (input.enabled) {
-        const job = await createHeartbeatJob({ name: `discovery-refresh-${ctx.user.id}`, cron: "0 0 8 * * *", path: "/api/scheduled/discovery-refresh", description: "Fetch daily market discovery signals from Hacker News Algolia" }, sessionToken);
-        taskUid = job.taskUid;
-        nextExecutionAt = job.nextExecutionAt ?? null;
-      }
-      await upsertDiscoverySettings({ userId: ctx.user.id, source: "hn_algolia", query: input.query, enabled: input.enabled ? 1 : 0, scheduleCronTaskUid: taskUid });
-      return { enabled: input.enabled, query: input.query, taskUid, nextExecutionAt };
-    }),
-    refreshNow: protectedProcedure.mutation(async ({ ctx }) => {
-      const settings = await getDiscoverySettings(ctx.user.id);
-      const query = settings?.query ?? "mobile apps indie games developer tools";
-      return refreshDiscoveryForUser(ctx.user.id, query);
-    }),
+    getSettings: protectedProcedure.query(({ ctx }) => getDiscoverySettings(ctx.user.id)),
+    configureSchedule: protectedProcedure.input(z.object({ source: z.enum(["hn_algolia", "github"]).default("hn_algolia"), query: z.string().trim().min(3).max(240).default("mobile apps indie games developer tools"), enabled: z.boolean().default(true), localHour: z.number().int().min(0).max(23).default(8), localMinute: z.number().int().min(0).max(59).default(0), timezone: z.string().trim().min(1).max(80).default("Asia/Dubai") })).mutation(async ({ ctx, input }) => { assertValidTimeZone(input.timezone); const existing = await getDiscoverySettings(ctx.user.id); const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? ""; if (existing?.scheduleCronTaskUid) await deleteHeartbeatJob(existing.scheduleCronTaskUid, sessionToken); let taskUid: string | null = null; let nextExecutionAt: string | null = null; if (input.enabled) { const job = await createHeartbeatJob({ name: `discovery-refresh-${ctx.user.id}`, cron: localTimeToUtcCron(input.localHour, input.localMinute, input.timezone), path: "/api/scheduled/discovery-refresh", description: `Daily Discovery refresh at ${String(input.localHour).padStart(2, "0")}:${String(input.localMinute).padStart(2, "0")} ${input.timezone}` }, sessionToken); taskUid = job.taskUid; nextExecutionAt = job.nextExecutionAt ?? null; } await upsertDiscoverySettings({ userId: ctx.user.id, source: input.source, query: input.query, localHour: input.localHour, localMinute: input.localMinute, timezone: input.timezone, enabled: input.enabled ? 1 : 0, scheduleCronTaskUid: taskUid }); return { ...input, taskUid, nextExecutionAt, cron: input.enabled ? localTimeToUtcCron(input.localHour, input.localMinute, input.timezone) : null }; }),
+    refreshNow: protectedProcedure.mutation(async ({ ctx }) => { const settings = await getDiscoverySettings(ctx.user.id); return refreshDiscoveryForUser(ctx.user.id, settings?.query ?? "mobile apps indie games developer tools", settings?.source ?? "hn_algolia"); }),
   }),
 
   knowledge: router({

@@ -10,6 +10,7 @@ import { createContext } from "./context";
 import { githubRefreshHandler } from "../github-refresh";
 import { aiTaskRefreshHandler } from "../ai-task-refresh";
 import { discoveryRefreshHandler } from "../discovery-refresh";
+import { competitorRefreshHandler } from "../competitor-refresh";
 import { isSameOriginRequest } from "../csrf";
 import { serveStatic, setupVite } from "./vite";
 
@@ -60,6 +61,7 @@ async function startServer() {
   app.post("/api/scheduled/github-refresh", githubRefreshHandler);
   app.post("/api/scheduled/ai-task", aiTaskRefreshHandler);
   app.post("/api/scheduled/discovery-refresh", discoveryRefreshHandler);
+  app.post("/api/scheduled/competitors-refresh", competitorRefreshHandler);
   // tRPC API
   app.use(
     "/api/trpc",

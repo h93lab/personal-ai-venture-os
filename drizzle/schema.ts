@@ -141,6 +141,9 @@ export const discoverySettings = mysqlTable("discovery_settings", {
   userId: int("userId").notNull().unique(),
   source: varchar("source", { length: 80 }).default("hn_algolia").notNull(),
   query: varchar("query", { length: 240 }).default("mobile apps indie games developer tools").notNull(),
+  localHour: int("localHour").default(8).notNull(),
+  localMinute: int("localMinute").default(0).notNull(),
+  timezone: varchar("timezone", { length: 80 }).default("Asia/Dubai").notNull(),
   enabled: int("enabled").default(1).notNull(),
   scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
   lastFetchedAt: timestamp("lastFetchedAt"),
@@ -168,9 +171,26 @@ export const discoverySignals = mysqlTable("discovery_signals", {
 export type DiscoverySignal = typeof discoverySignals.$inferSelect;
 export type InsertDiscoverySignal = typeof discoverySignals.$inferInsert;
 
+export const competitorSettings = mysqlTable("competitor_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  source: varchar("source", { length: 80 }).default("github").notNull(),
+  query: varchar("query", { length: 240 }).default("mobile apps indie games developer tools").notNull(),
+  enabled: int("enabled").default(1).notNull(),
+  refreshMinutes: int("refreshMinutes").default(1440).notNull(),
+  scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
+  lastFetchedAt: timestamp("lastFetchedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type CompetitorSetting = typeof competitorSettings.$inferSelect;
+export type InsertCompetitorSetting = typeof competitorSettings.$inferInsert;
+
 export const competitors = mysqlTable("competitors", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
+  sourceKey: varchar("sourceKey", { length: 180 }),
+  source: varchar("source", { length: 80 }).default("manual").notNull(),
   name: varchar("name", { length: 220 }).notNull(),
   category: varchar("category", { length: 120 }).notNull(),
   url: varchar("url", { length: 1000 }),

@@ -10,7 +10,7 @@ vi.mock("./http-client", () => ({ externalFetch }));
 vi.mock("./db", () => ({ findDiscoverySignalBySourceKey, insertDiscoverySignal, updateDiscoveryFetch, updateDiscoverySignal, getDiscoverySettingsByTaskUid }));
 vi.mock("./_core/sdk", () => ({ sdk: { authenticateRequest: vi.fn() } }));
 
-const { normalizeHackerNewsHits, refreshDiscoveryForUser, scoreHackerNewsHit } = await import("./discovery-refresh");
+const { normalizeHackerNewsHits, normalizeGithubRepositories, refreshDiscoveryForUser, scoreHackerNewsHit } = await import("./discovery-refresh");
 
 describe("discovery source", () => {
   it("normalizes Hacker News hits into scored signals with stable keys", () => {
@@ -18,11 +18,15 @@ describe("discovery source", () => {
     expect(normalizeHackerNewsHits({ hits: [{ objectID: "123", title: "Build a mobile tool", points: 50, num_comments: 10, url: "https://example.com/post" }] })).toEqual([expect.objectContaining({ sourceKey: "hn:123", sourceUrl: "https://example.com/post", score: 68, sourceCount: 1 })]);
   });
 
+  it("normalizes GitHub repositories into market signals", () => {
+    expect(normalizeGithubRepositories({ items: [{ id: 42, full_name: "owner/mobile-tool", html_url: "https://github.com/owner/mobile-tool", description: "A mobile tool", stargazers_count: 100, forks_count: 20, open_issues_count: 4, language: "TypeScript" }] })).toEqual([expect.objectContaining({ sourceKey: "github:42", type: "GitHub Trending · مستودع", sourceUrl: "https://github.com/owner/mobile-tool" })]);
+  });
+
   it("updates existing source keys and inserts only new signals", async () => {
     findDiscoverySignalBySourceKey.mockImplementation(async (_userId: number, key: string) => key === "hn:old" ? { id: 7 } : undefined);
     externalFetch.mockResolvedValue({ ok: true, json: async () => ({ hits: [{ objectID: "old", title: "Old story", points: 10, num_comments: 1 }, { objectID: "new", title: "New story", points: 20, num_comments: 2 }] }) });
     const result = await refreshDiscoveryForUser(55, "mobile apps");
-    expect(result).toEqual({ fetched: 2, inserted: 1, updated: 1 });
+    expect(result).toEqual({ fetched: 2, inserted: 1, updated: 1, source: "hn_algolia" });
     expect(updateDiscoverySignal).toHaveBeenCalledWith(55, 7, expect.objectContaining({ sourceKey: "hn:old" }));
     expect(insertDiscoverySignal).toHaveBeenCalledWith(expect.objectContaining({ userId: 55, sourceKey: "hn:new" }));
     expect(updateDiscoveryFetch).toHaveBeenCalledWith(55, expect.any(Date));

@@ -229,3 +229,11 @@
 
 - [x] إضافة ErrorBoundary فعلية حول lazy pages مع fallback تحميل موحد قابل للتعامل مع فشل chunk عبر إعادة تحميل الصفحة.
 - [x] إجراء تحقق مرئي authenticated عبر deep links لـ Discovery وCompetitors وSettings؛ ظهرت الواجهات وحالات الفراغ والتحميل دون أخطاء React.
+
+## توسيع المصادر والجدولة والتحديث الدوري
+
+- [x] إضافة مصدر Discovery ثانٍ آمن عبر GitHub Search، مع اختيار المصدر وحفظه لكل مستخدم ودمج النتائج دون تكرار.
+- [x] إضافة وقت المسح اليومي والمنطقة الزمنية إلى إعدادات Discovery وتحويلهما إلى cron UTC عند جدولة Heartbeat.
+- [x] إضافة واجهة إعدادات واضحة لاختيار المصدر والوقت والمنطقة الزمنية وحالة الجدولة.
+- [x] إضافة تحديث دوري آمن لبيانات Competitors من GitHub مع deduplication وHeartbeat مستقل وgating للفترة المختارة.
+- [x] إضافة اختبارات للمصادر والـ timezone والجدولة وتحديث Competitors؛ نجحت TypeScript و41 اختبارًا وproduction build وbrowser smoke والتحقق المرئي.

@@ -92,6 +92,13 @@
       "when": 1787204340962,
       "tag": "0012_square_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1787205723315,
+      "tag": "0013_curved_green_goblin",
+      "breakpoints": true
     }
   ]
 }
