@@ -279,16 +279,16 @@
 
 ## فصل Manus والمصادقة المحلية
 
-- [ ] جرد وإزالة اعتماد المصادقة ومسارات OAuth وForge وManus من التشغيل.
-- [ ] إضافة مصادقة PIN محلية مع hash قوي، جلسة cookie مستقلة، CSRF، rate limiting، وواجهة تسجيل دخول.
-- [ ] فصل إعدادات البيئة وDocker وREADME عن متغيرات Manus واستبدالها بمتغيرات مستقلة.
-- [ ] استبدال Heartbeat/التخزين/LLM المعتمد على Manus بآليات self-hosted أو موصلات اختيارية.
-- [ ] تشغيل اختبارات أمنية وتدفقات الدخول والبناء ثم حفظ checkpoint.
+- [x] جرد وإزالة اعتماد المصادقة ومسارات OAuth وForge وManus من التشغيل.
+- [x] إضافة مصادقة PIN محلية مع hash قوي، جلسة cookie مستقلة، CSRF، rate limiting، وواجهة تسجيل دخول.
+- [x] فصل إعدادات البيئة وDocker وREADME عن متغيرات Manus واستبدالها بمتغيرات مستقلة.
+- [x] استبدال Heartbeat/التخزين/LLM المعتمد على Manus بآليات self-hosted أو موصلات اختيارية.
+- [x] تشغيل اختبارات أمنية وتدفقات الدخول والبناء ثم حفظ checkpoint.
 
 ## فصل Manus والتشغيل المستقل
 - [x] استبدال OAuth الخاص بـ Manus بمصادقة PIN محلية
-- [ ] إزالة Forge وstorage proxy ومتغيرات البيئة الخاصة بالمنصة
-- [ ] استبدال Heartbeat بعامل cron ذاتي داخل Docker
-- [ ] ربط AI بمزود OpenAI-compatible قابل للضبط
-- [ ] تحديث توثيق VPS واختبارات الأمان والتشغيل
-- [ ] تشغيل TypeScript وVitest وproduction build وbrowser smoke
+- [x] إزالة Forge وstorage proxy ومتغيرات البيئة الخاصة بالمنصة
+- [x] استبدال Heartbeat بعامل cron ذاتي داخل Docker
+- [x] ربط AI بمزود OpenAI-compatible قابل للضبط
+- [x] تحديث توثيق VPS واختبارات الأمان والتشغيل
+- [x] تشغيل TypeScript وVitest وproduction build وbrowser smoke

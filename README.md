@@ -1,66 +1,64 @@
 # Venture OS
 
-Venture OS is a private, AI-assisted venture intelligence workspace for managing knowledge, ideas, projects, market discovery, competitors, AI tasks, GitHub health, and Telegram notifications. The repository is prepared as a clean application export: the database schema and migrations remain available, while the current application data has been removed.
+Venture OS is a self-hosted, AI-assisted venture intelligence workspace for managing knowledge, ideas, projects, market discovery, competitors, AI tasks, GitHub health, and Telegram notifications. The repository is prepared as a clean application export: the schema and migrations remain available, while application data has been removed.
+
+## Architecture
+
+The platform runs as a React 19 + Tailwind 4 frontend, an Express 5 + tRPC backend, and MySQL through Drizzle ORM. Authentication is local PIN-based authentication with a signed, HTTP-only JWT cookie; there is no OAuth callback or Manus account dependency. AI calls use an OpenAI-compatible API configured by `AI_API_BASE_URL` and `AI_API_KEY`. GitHub and Telegram are direct integrations configured from the application settings or deployment environment. Scheduled callbacks authenticate with an internal scheduler token and are designed to be invoked by the self-hosted Docker scheduler.
 
 ## Requirements
 
-For a VPS deployment, install Docker Engine and the Docker Compose plugin. A practical baseline is 2 vCPU, 2 GB RAM, 20 GB SSD, and a domain name terminated through a reverse proxy such as Caddy or Nginx. The application listens on `PORT` inside the container and the compose file publishes it through `APP_PORT`.
+For a VPS deployment, install Docker Engine and the Docker Compose plugin. A practical baseline is 2 vCPU, 2 GB RAM, 20 GB SSD, and a domain terminated through a reverse proxy such as Caddy or Nginx. The application listens on `PORT` inside the container and Compose publishes it through `APP_PORT`.
 
 ## Quick start with Docker Compose
 
-Copy `deployment.env.example` to `.env` and replace every `CHANGE_ME` value. This file is the export-safe environment template; it contains placeholders only. The application container must use the database hostname `db`, not `localhost`.
+Copy `deployment.env.example` to `.env` and replace every `CHANGE_ME` value. The application container must use the database hostname `db`, not `localhost`.
 
 ```bash
 cp deployment.env.example .env
-# edit .env and replace all CHANGE_ME values
+# edit .env and replace every CHANGE_ME value
 
 docker compose up -d --build
 
 docker compose logs -f app
 ```
 
-The app applies committed Drizzle migrations before starting the production server. Open `http://YOUR_VPS_IP:${APP_PORT:-3000}` or place a reverse proxy in front of the published port. OAuth callback configuration must use the public HTTPS URL required by the OAuth provider.
+Open `http://YOUR_VPS_IP:${APP_PORT:-3000}` or place a reverse proxy in front of the published port. On first installation, use the value configured in `LOCAL_AUTH_PIN`; the supplied template intentionally leaves this as a deployment secret. Change it after installation by updating the environment and recreating the app container.
 
-## Required environment variables
+## Environment variables
 
 | Variable | Required | Purpose |
 |---|---:|---|
-| `DATABASE_URL` | Yes | MySQL/TiDB connection string used by the app. Compose derives it from the database variables. |
-| `JWT_SECRET` | Yes | Long random secret for session signing. Use at least 32 random characters. |
-| `VITE_APP_ID` | Yes | OAuth application identifier. |
-| `OAUTH_SERVER_URL` | Yes | OAuth backend base URL. |
-| `VITE_OAUTH_PORTAL_URL` | Yes | Browser OAuth portal URL. |
-| `OWNER_OPEN_ID` | Yes | Owner identifier used by the application integration layer. |
-| `BUILT_IN_FORGE_API_URL` | Yes | Server-side Manus Forge endpoint for AI, storage, notifications, and Heartbeat. |
-| `BUILT_IN_FORGE_API_KEY` | Yes | Server-side Forge credential. Never expose it to the browser. |
-| `VITE_FRONTEND_FORGE_API_URL` | Yes | Frontend Forge endpoint. |
-| `VITE_FRONTEND_FORGE_API_KEY` | Yes | Frontend Forge credential supplied by the connected Manus environment. |
+| `DATABASE_URL` | Yes | MySQL connection string used by the backend. |
+| `JWT_SECRET` | Yes | Long random secret used to sign local sessions. Use at least 32 random characters. |
+| `LOCAL_AUTH_PIN` | Yes | Initial local PIN, 4–12 digits. Keep it outside Git and rotate it after installation. |
+| `AI_API_BASE_URL` | Yes for AI | Base URL of an OpenAI-compatible provider, such as OpenAI, OpenRouter, Ollama, vLLM, or a private gateway. |
+| `AI_API_KEY` | Yes for hosted AI | Server-side API key for the selected provider. Leave empty only when using a local provider that does not require a key. |
+| `AI_MODEL` | Recommended | Default model identifier used by AI operations. |
+| `SCHEDULER_TOKEN` | Yes for scheduled jobs | Internal token sent by the Docker scheduler in `x-scheduler-token`. |
 | `MYSQL_DATABASE` | Yes | Database name for the Compose MySQL service. |
 | `MYSQL_USER` | Yes | Database user for the Compose MySQL service. |
-| `MYSQL_PASSWORD` | Yes | Database user password; it must match the password embedded in `DATABASE_URL` when running outside Compose. |
-| `MYSQL_ROOT_PASSWORD` | Yes | MySQL root password used only by the database container healthcheck and administration. |
+| `MYSQL_PASSWORD` | Yes | Database user password; it must match `DATABASE_URL`. |
+| `MYSQL_ROOT_PASSWORD` | Yes | Root password used by the MySQL container. |
 | `NODE_ENV` | Yes | Set to `production`. |
 | `PORT` | Yes | Internal application port; default `3000`. |
 | `APP_PORT` | No | Host port published by Compose; default `3000`. |
 
-## OAuth setup
+GitHub and Telegram credentials may be entered through Settings. If environment-level defaults are used, keep `GITHUB_TOKEN`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID` in the deployment secret manager rather than committing them.
 
-Register the public HTTPS origin and the exact callback route required by the Manus OAuth integration in the OAuth application settings. Do not copy the values from the old development preview URL into a VPS deployment. `VITE_OAUTH_PORTAL_URL` is the OAuth portal base URL and must be a complete HTTPS URL such as `https://manus.im`; it is not the VPS domain and must not contain `CHANGE_ME`, quotes, or a path copied from the callback URL. `VITE_APP_ID` must also be the real OAuth application ID.
+## AI provider guidance
 
-The frontend reads `VITE_*` values during the image build, so changing them requires rebuilding the app image, not only restarting the container:
+The backend speaks the standard `/v1/chat/completions` and `/v1/models` OpenAI-compatible endpoints. This allows the deployment to use a hosted provider for the strongest content quality or a local gateway such as Ollama or vLLM for privacy and predictable operating costs. The API key is never sent to the browser. Provider connectivity and model discovery should be tested from Settings before enabling automated AI tasks.
 
-```bash
-# validate the values first; no placeholder should remain
- grep -E '^(VITE_APP_ID|VITE_OAUTH_PORTAL_URL)=' .env
- docker compose up -d --build --force-recreate app
- docker compose logs --tail=100 app
-```
+## Scheduled work
 
-The application now validates OAuth configuration before constructing the login URL and shows the missing/invalid variable instead of a generic `TypeError: Invalid URL`. After changing OAuth values, recreate the app container with `docker compose up -d --build --force-recreate app`.
+Scheduled refreshes are self-hosted. Callback routes under `/api/scheduled/*` require the `x-scheduler-token` header and a `taskUid` in the JSON body. The scheduler must invoke the endpoint over the internal Compose network or through the public reverse-proxy URL. Do not expose the scheduler token to the browser or Telegram.
+
+The callback handlers are idempotent and apply their own time-zone, refresh-window, and duplicate-run gates. In production, use a durable cron runner or an external VPS scheduler that survives application restarts; do not depend on an in-process timer.
 
 ## Database operations
 
-The production container runs `drizzle-kit migrate` on startup. Do not run destructive schema commands against a production database. Before upgrades, create a MySQL backup:
+The production container runs committed Drizzle migrations on startup. Do not run destructive schema commands against a production database. Before upgrades, create a MySQL backup:
 
 ```bash
 docker compose exec db sh -c 'exec mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" --single-transaction --routines --triggers "$MYSQL_DATABASE"' > venture-os-$(date +%Y%m%d-%H%M%S).sql
@@ -72,28 +70,24 @@ Restore only after verifying the target database and backup file:
 cat backup.sql | docker compose exec -T db sh -c 'exec mysql -u root -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"'
 ```
 
-## Operations and monitoring
+## Operations and security
 
-Heartbeat jobs are managed by the configured scheduling service, not by an in-container cron process. Discovery and GitHub callbacks apply their own gating rules for local timezone, selected refresh intervals, and duplicate execution. Monitor the app and database with `docker compose ps`, `docker compose logs --tail=200 app`, and `docker compose logs --tail=200 db`.
+Use `docker compose ps`, `docker compose logs --tail=200 app`, and `docker compose logs --tail=200 db` for basic monitoring. Rotate `JWT_SECRET`, `LOCAL_AUTH_PIN`, `SCHEDULER_TOKEN`, AI credentials, and database credentials through the VPS secret manager. Rotating `JWT_SECRET` invalidates active sessions. Keep the database volume and backups on encrypted storage, and place the public app behind HTTPS.
 
-Rotate `JWT_SECRET`, Forge credentials, and database credentials through your secret manager or VPS deployment process. A JWT rotation invalidates active sessions and requires users to authenticate again. Keep the database volume and backups on encrypted storage.
+The application uses server-side secret storage, encryption and masking for sensitive integrations, SSRF validation, timeouts, limited retries, same-origin CSRF checks, route-aware rate limiting, and temporary PIN lockout after repeated failures. For multi-instance or high-traffic deployments, replace the in-process rate limiter with a shared Redis or gateway policy.
 
-## Development
+## Development and verification
 
 ```bash
 corepack pnpm install
-corepack pnpm check
+corepack pnpm exec tsc --noEmit
 corepack pnpm test
 corepack pnpm test:browser
 corepack pnpm build
 ```
 
-The current verification baseline is TypeScript clean, 41 Vitest tests passing, a successful production build, a four-route Chromium smoke test, and a clean production dependency audit. The browser smoke test validates application boundaries and lazy-route loading; it does not replace a real authenticated end-to-end test with a dedicated test OAuth account.
-
-## Security notes
-
-Secrets are stored server-side and sensitive integration values are encrypted and masked. External GET integrations use SSRF validation, timeouts, limited retries, and response handling. Requests use same-origin CSRF checks and route-aware rate limiting. For multi-instance or high-traffic deployments, replace the in-process rate limiter with a shared Redis or gateway policy before exposing the service broadly.
+The current verification baseline includes a clean TypeScript check, 43 Vitest tests, a successful production build, and authenticated local-PIN smoke coverage. Browser tests should be run against a configured local environment before each VPS release.
 
 ## Project structure
 
-The React client is under `client/`, the tRPC and integration layer under `server/`, Drizzle schema and migrations under `drizzle/`, and deployment files at the repository root. `Dockerfile` builds both the frontend and server; `docker-compose.yml` supplies MySQL and starts migrations before the app.
+The React client is under `client/`, the tRPC and integration layer under `server/`, the Drizzle schema and migrations under `drizzle/`, and deployment files at the repository root. `Dockerfile` builds both the frontend and server; `docker-compose.yml` supplies MySQL and starts migrations before the app.

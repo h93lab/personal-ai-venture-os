@@ -34,5 +34,23 @@ services:
       - "${APP_PORT:-3000}:3000"
     command: ["sh", "-c", "corepack pnpm exec drizzle-kit migrate && node dist/index.js"]
 
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: mysql://${MYSQL_USER:-venture_os}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE:-venture_os}
+      SCHEDULER_BASE_URL: http://app:3000
+    depends_on:
+      db:
+        condition: service_healthy
+      app:
+        condition: service_started
+    command: ["sh", "-c", "while true; do node scripts/cron-runner.mjs || true; sleep 60; done"]
+
 volumes:
   venture_os_mysql:
