@@ -45,7 +45,18 @@ The app applies committed Drizzle migrations before starting the production serv
 
 ## OAuth setup
 
-Register the public HTTPS origin and the exact callback route required by the Manus OAuth integration in the OAuth application settings. Do not copy the values from the old development preview URL into a VPS deployment. After changing OAuth values, recreate the app container with `docker compose up -d --force-recreate app`.
+Register the public HTTPS origin and the exact callback route required by the Manus OAuth integration in the OAuth application settings. Do not copy the values from the old development preview URL into a VPS deployment. `VITE_OAUTH_PORTAL_URL` is the OAuth portal base URL and must be a complete HTTPS URL such as `https://manus.im`; it is not the VPS domain and must not contain `CHANGE_ME`, quotes, or a path copied from the callback URL. `VITE_APP_ID` must also be the real OAuth application ID.
+
+The frontend reads `VITE_*` values during the image build, so changing them requires rebuilding the app image, not only restarting the container:
+
+```bash
+# validate the values first; no placeholder should remain
+ grep -E '^(VITE_APP_ID|VITE_OAUTH_PORTAL_URL)=' .env
+ docker compose up -d --build --force-recreate app
+ docker compose logs --tail=100 app
+```
+
+The application now validates OAuth configuration before constructing the login URL and shows the missing/invalid variable instead of a generic `TypeError: Invalid URL`. After changing OAuth values, recreate the app container with `docker compose up -d --build --force-recreate app`.
 
 ## Database operations
 

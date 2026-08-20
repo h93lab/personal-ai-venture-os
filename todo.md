@@ -269,3 +269,10 @@
 - [x] فحص gitignore وملفات البيئة والبحث عن أسرار أو artifacts حساسة قبل التصدير؛ لم تظهر مفاتيح فعلية أو ملفات شهادات حساسة.
 - [x] إنشاء مستودع GitHub عام ورفع نسخة Venture OS النظيفة.
 - [x] التحقق من visibility والرابط والملفات الأساسية بعد الرفع؛ المستودع public وفرعه الرئيسي main ويحتوي Dockerfile وCompose وREADME وقالب البيئة.
+
+## إصلاح Invalid URL بعد تثبيت VPS
+
+- [x] تحديد مسار URL غير الصالح في `startLogin` ومصدره `VITE_OAUTH_PORTAL_URL`/`VITE_APP_ID` بعد تثبيت VPS.
+- [x] إضافة تحقق مبكر لعناوين OAuth والتقاط الخطأ داخل `useAuth` وعرض رسالة إعداد واضحة بدل `TypeError: Invalid URL`.
+- [x] تحديث Docker/README وقالب البيئة لتوضيح أن OAuth portal يجب أن يكون HTTPS كاملًا وإعادة build بعد تغيير VITE_* قيم.
+- [x] تشغيل typecheck و41 اختبارًا وproduction build و4-route browser smoke وحفظ checkpoint الإصلاح.

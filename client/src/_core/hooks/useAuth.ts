@@ -1,7 +1,7 @@
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { TRPCClientError } from "@trpc/client";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type UseAuthOptions = {
   redirectOnUnauthenticated?: boolean;
@@ -15,6 +15,7 @@ export function useAuth(options?: UseAuthOptions) {
   // desync it from an in-flight login's `state`.
   const { redirectOnUnauthenticated = false, redirectPath } = options ?? {};
   const utils = trpc.useUtils();
+  const [configurationError, setConfigurationError] = useState<Error | null>(null);
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
     retry: false,
@@ -54,7 +55,7 @@ export function useAuth(options?: UseAuthOptions) {
     return {
       user: meQuery.data ?? null,
       loading: meQuery.isLoading || logoutMutation.isPending,
-      error: meQuery.error ?? logoutMutation.error ?? null,
+      error: configurationError ?? meQuery.error ?? logoutMutation.error ?? null,
       isAuthenticated: Boolean(meQuery.data),
     };
   }, [
@@ -63,6 +64,7 @@ export function useAuth(options?: UseAuthOptions) {
     meQuery.isLoading,
     logoutMutation.error,
     logoutMutation.isPending,
+    configurationError,
   ]);
 
   useEffect(() => {
@@ -84,7 +86,12 @@ export function useAuth(options?: UseAuthOptions) {
     if (redirectPath) {
       window.location.href = redirectPath;
     } else {
-      startLogin();
+      try {
+        setConfigurationError(null);
+        startLogin();
+      } catch (error) {
+        setConfigurationError(error instanceof Error ? error : new Error("OAuth configuration is invalid"));
+      }
     }
   }, [
     redirectOnUnauthenticated,
