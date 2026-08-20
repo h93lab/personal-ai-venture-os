@@ -263,3 +263,9 @@
 - [x] إنشاء `deployment.env.example` شامل بكل متغيرات التشغيل placeholder-only؛ README يشرح نسخه إلى `.env` قبل التشغيل.
 - [x] كتابة README عملي يشرح Docker وVPS وتهيئة قاعدة البيانات وOAuth والأسرار والنسخ الاحتياطي.
 - [x] تشغيل التحقق النهائي: TypeScript و41 اختبارًا وproduction build وdependency audit نظيف؛ وحفظ checkpoint نسخة التصدير النظيفة.
+
+## تصدير GitHub العام
+
+- [ ] فحص gitignore وملفات البيئة والبحث عن أسرار أو artifacts حساسة قبل التصدير.
+- [ ] إنشاء مستودع GitHub عام ورفع نسخة Venture OS النظيفة.
+- [ ] التحقق من visibility والرابط والملفات الأساسية بعد الرفع.
