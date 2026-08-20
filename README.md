@@ -78,15 +78,17 @@ The application uses server-side secret storage, encryption and masking for sens
 
 ## Development and verification
 
+The Dockerfile installs the exact pnpm version declared by the project (`10.4.1`) directly instead of relying on Corepack's signature and release lookup. It still uses `pnpm install --frozen-lockfile`, so dependency resolution remains strictly validated against `pnpm-lock.yaml`. The `dist/` directory is intentionally excluded from the Docker build context because the image runs the complete frontend and server build internally.
+
 ```bash
-corepack pnpm install
-corepack pnpm exec tsc --noEmit
-corepack pnpm test
-corepack pnpm test:browser
-corepack pnpm build
+pnpm install --frozen-lockfile
+pnpm exec tsc --noEmit
+pnpm test
+pnpm test:browser
+pnpm build
 ```
 
-The current verification baseline includes a clean TypeScript check, 43 Vitest tests, a successful production build, and authenticated local-PIN smoke coverage. Browser tests should be run against a configured local environment before each VPS release.
+The current verification baseline includes a clean TypeScript check, 44 Vitest tests, a successful production build, and authenticated local-PIN smoke coverage. Browser tests should be run against a configured local environment before each VPS release.
 
 ## Project structure
 

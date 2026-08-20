@@ -298,3 +298,8 @@
 - [x] إبطال الجلسات الحالية بعد تغيير PIN وإضافة حماية من المحاولات المتكررة.
 - [x] إضافة بطاقة تغيير PIN داخل Settings مع حالات تحميل ونجاح وخطأ.
 - [x] إضافة اختبارات backend وواجهة للتدفق ثم حفظ checkpoint.
+
+## إصلاح موثوقية Docker وpnpm
+- [x] فحص Dockerfile وpackageManager وpnpm-lock.yaml لتحديد سبب فشل frozen-lockfile.
+- [x] إصلاح تثبيت pnpm داخل Docker بطريقة reproducible دون تعطيل تحقق lockfile.
+- [x] اختبار Docker build وتحديث التوثيق ثم رفع الإصلاح إلى GitHub.
